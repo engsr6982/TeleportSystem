@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2025-11-08
+
+> Backport hotfix release for the 0.14.x branch
+
+- Fix crash caused by players accepting or denying expired TPA requests (#32, #28)
+
 ## [0.15.1] - 2025-11-08
 
 - Fix crash caused by players accepting or denying expired TPA requests (#32, #28)
