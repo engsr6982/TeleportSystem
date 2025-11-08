@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- 修复 tpa 多请求时接受/拒绝无响应
+
 ## [0.15.1] - 2025-11-08
 
 - Fix crash caused by players accepting or denying expired TPA requests (#32, #28)

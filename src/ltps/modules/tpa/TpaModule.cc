@@ -159,11 +159,11 @@ TpaRequestPool const& TpaModule::getRequestPool() const { return *mTpaRequestPoo
 
 
 void TpaModule::handlePlayerExecuteTpaCommand(PlayerExecuteTpaCommandEvent& ev) {
-    auto&      receiver   = ev.getPlayer();
-    auto const localeCode = receiver.getLocaleCode();
+    auto&      self       = ev.getPlayer();
+    auto const localeCode = self.getLocaleCode();
 
-    if (receiver.isSleeping()) {
-        mc_utils::sendText<mc_utils::Error>(receiver, "你不能在睡觉时使用此命令"_trl(localeCode));
+    if (self.isSleeping()) {
+        mc_utils::sendText<mc_utils::Error>(self, "你不能在睡觉时使用此命令"_trl(localeCode));
         return;
     }
 
@@ -171,10 +171,10 @@ void TpaModule::handlePlayerExecuteTpaCommand(PlayerExecuteTpaCommandEvent& ev) 
     switch (action) {
     case PlayerExecuteTpaCommandEvent::Action::Accept:
     case PlayerExecuteTpaCommandEvent::Action::Deny:
-        handleAcceptOrDenyTpaRequest(receiver, action == PlayerExecuteTpaCommandEvent::Action::Accept);
+        handleAcceptOrDenyTpaRequest(self, action == PlayerExecuteTpaCommandEvent::Action::Accept);
         break;
     case PlayerExecuteTpaCommandEvent::Action::Cancel:
-        handleCancelTpaRequest(receiver);
+        handleCancelTpaRequest(self);
         break;
     }
 }
@@ -206,12 +206,12 @@ void TpaModule::handleAcceptOrDenyTpaRequest(Player& receiver, bool accept) {
         fm.setTitle("Tpa 请求列表 [{}]"_trl(localeCode, senders.size()));
         fm.setContent("选择一个要 接受/拒绝 的 TPA 请求"_trl(localeCode));
 
-        for (auto& sender : senders) {
+        for (auto const& sender : senders) {
             auto info = infoDb.fromUuid(sender);
             fm.appendButton(
                 "发起者: {0}"_trl(localeCode, info.has_value() ? info->name : sender.asString()),
-                [&pool, sender, accept](Player& self) {
-                    if (auto request = pool.getRequest(self.getUuid(), sender)) {
+                [&pool, sender, accept](Player& receiver) {
+                    if (auto request = pool.getRequest(sender, receiver.getUuid())) {
                         accept ? request->accept() : request->deny();
                     }
                 }
