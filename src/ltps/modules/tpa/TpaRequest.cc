@@ -200,10 +200,18 @@ void TpaRequest::sendFormToReceiver() {
                          ? "'{0}' 希望传送到您当前位置"_trl(receiverLocaleCode, sender->getRealName())
                          : "'{0}' 希望将您传送到他(她)那里"_trl(receiverLocaleCode, sender->getRealName());
     form.setContent(desc);
-    form.appendButton("接受"_trl(receiverLocaleCode), "textures/ui/realms_green_check", "path", [this](Player&) {
-        accept();
+
+    std::weak_ptr<TpaRequest> self = shared_from_this();
+    form.appendButton("接受"_trl(receiverLocaleCode), "textures/ui/realms_green_check", "path", [self](Player&) {
+        if (auto req = self.lock()) {
+            req->accept();
+        }
     });
-    form.appendButton("拒绝"_trl(receiverLocaleCode), "textures/ui/realms_red_x", "path", [this](Player&) { deny(); });
+    form.appendButton("拒绝"_trl(receiverLocaleCode), "textures/ui/realms_red_x", "path", [self](Player&) {
+        if (auto req = self.lock()) {
+            req->deny();
+        }
+    });
     form.appendButton(
         "忽略\n失效时间: {0}"_trl(receiverLocaleCode, getExpirationTime()),
         "textures/ui/backup_replace",
