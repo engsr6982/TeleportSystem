@@ -27,7 +27,7 @@ struct ICreateTpaRequestParam {
 };
 
 void TpaCommand::setup() {
-    auto& cmd = ll::command::CommandRegistrar::getInstance().getOrCreateCommand("tpa", "TeleportSystem - Tpa");
+    auto& cmd = ll::command::CommandRegistrar::getInstance(false).getOrCreateCommand("tpa", "TeleportSystem - Tpa");
 
     // tpa
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {

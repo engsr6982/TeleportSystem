@@ -75,19 +75,6 @@ BlockPos face2Pos(BlockPos const& sour, uchar face) {
 
 DimensionHeightRange& getDimensionHeight(Dimension& dim) { return dim.mHeightRange.get(); }
 
-void executeCommand(std::string const& cmd, Player* player) {
-    auto& minecraftCommands = ll::service::getMinecraft()->mCommands;
-    if (!minecraftCommands) {
-        return;
-    }
-    CommandContext ctx = CommandContext(
-        cmd,
-        std::make_unique<PlayerCommandOrigin>(PlayerCommandOrigin(*player)),
-        CommandVersion::CurrentVersion()
-    );
-    minecraftCommands->executeCommand(ctx, true);
-}
-
 bool isSneaking(Player& player) {
     return SynchedActorDataAccess::getActorFlag(player.getEntityContext(), ActorFlags::Sneaking);
 }

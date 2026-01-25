@@ -53,7 +53,7 @@ struct PermBatchPlayerActionParam {
 
 
 void BaseCommand::setup() {
-    auto& cmd = ll::command::CommandRegistrar::getInstance().getOrCreateCommand("ltps", MOD_NAME);
+    auto& cmd = ll::command::CommandRegistrar::getInstance(false).getOrCreateCommand("ltps", MOD_NAME);
 
     // ltps version
     cmd.overload().text("version").execute([](CommandOrigin const& /* origin */, CommandOutput& output) {

@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- 修复 tpa 多请求时接受/拒绝无响应
+## [0.16.0] - 2026-01-26
+
+- 修复 tpa 多请求时接受/拒绝无响应 #33
+- 适配 LeviLamina v1.9.x
 
 ## [0.15.1] - 2025-11-08
 

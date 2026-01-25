@@ -27,8 +27,6 @@ TPSNDAPI BlockPos face2Pos(BlockPos const& sour, uchar face);
 
 TPSNDAPI DimensionHeightRange& getDimensionHeight(Dimension& dim);
 
-TPSAPI void executeCommand(std::string const& cmd, Player* player);
-
 TPSNDAPI bool isSneaking(Player& player);
 
 TPSNDAPI Vec2 getRotation(Actor& actor);

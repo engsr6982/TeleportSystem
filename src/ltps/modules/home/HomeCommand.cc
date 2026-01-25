@@ -38,7 +38,7 @@ struct HomeUpdateParam {
 
 
 void HomeCommand::setup() {
-    auto& cmd = ll::command::CommandRegistrar::getInstance().getOrCreateCommand("home", "TeleportSystem - Home");
+    auto& cmd = ll::command::CommandRegistrar::getInstance(false).getOrCreateCommand("home", "TeleportSystem - Home");
 
     // home
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {

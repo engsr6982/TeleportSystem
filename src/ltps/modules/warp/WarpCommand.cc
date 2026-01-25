@@ -26,7 +26,7 @@ struct WarpActionParam {
 
 
 void WarpCommand::setup() {
-    auto& cmd = ll::command::CommandRegistrar::getInstance().getOrCreateCommand("warp", "TeleportSystem - Warp");
+    auto& cmd = ll::command::CommandRegistrar::getInstance(false).getOrCreateCommand("warp", "TeleportSystem - Warp");
 
     // warp
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {

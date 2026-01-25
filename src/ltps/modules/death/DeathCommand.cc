@@ -18,7 +18,7 @@ struct BackParam {
 
 
 void DeathCommand::setup() {
-    auto& cmd = ll::command::CommandRegistrar::getInstance().getOrCreateCommand("death", "TeleportSystem - Death");
+    auto& cmd = ll::command::CommandRegistrar::getInstance(false).getOrCreateCommand("death", "TeleportSystem - Death");
 
     // death
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {
@@ -75,7 +75,7 @@ void DeathCommand::setup() {
 
     // back (别名)
     if (getConfig().modules.death.registerBackCommand) {
-        ll::command::CommandRegistrar::getInstance()
+        ll::command::CommandRegistrar::getInstance(false)
             .getOrCreateCommand("back", "TeleportSystem - Death")
             .overload()
             .execute([](CommandOrigin const& origin, CommandOutput& output) {

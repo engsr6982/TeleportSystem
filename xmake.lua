@@ -2,11 +2,8 @@ add_rules("mode.debug", "mode.release")
 
 add_repositories("liteldev-repo https://github.com/LiteLDev/xmake-repo.git")
 
-if is_config("target_type", "server") then
-    add_requires("levilamina 1.7.0", {configs = {target_type = "server"}})
-else
-    add_requires("levilamina 1.0.0-rc.3", {configs = {target_type = "client"}})
-end
+add_requires("levilamina 1.9.0", {configs = {target_type = "server"}})
+
 add_requires("levibuildscript")
 add_requires("exprtk 0.0.3")
 
@@ -14,12 +11,6 @@ if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
-
-option("target_type")
-    set_default("server")
-    set_showmenu(true)
-    set_values("server", "client")
-option_end()
 
 option("test")
     set_default(false)
@@ -57,7 +48,8 @@ target("TeleportSystem")
         "NOMINMAX",
         "UNICODE",
         "_HAS_CXX23=1",
-        "TPS_EXPORTS"
+        "TPS_EXPORTS",
+        "LL_PLAT_S"
     )
     add_packages(
         "levilamina",
@@ -75,11 +67,3 @@ target("TeleportSystem")
     end
 
     add_defines("MOD_NAME=\"TeleportSystem\"")
-
-    after_build(function (target)
-        -- local bindir = path.join(os.projectdir(), "bin")
-        -- local outputdir = path.join(bindir, target:name())
-        -- -- copy data files
-        -- local datadir = path.join(os.projectdir(), "assets", "data")
-        -- os.cp(datadir, outputdir)
-    end)
