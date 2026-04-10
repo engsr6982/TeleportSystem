@@ -79,7 +79,7 @@ bool isSneaking(Player& player) {
     return SynchedActorDataAccess::getActorFlag(player.getEntityContext(), ActorFlags::Sneaking);
 }
 
-Vec2 getRotation(Actor& actor) { return actor.mBuiltInComponents->mActorRotationComponent->mRotationDegree; }
+Vec2 getRotation(Actor& actor) { return actor.mBuiltInComponents->mActorRotationComponent->mRot; }
 
 bool canDestroyBlock(ItemStackBase const& item, Block const& block) {
     auto legacy = &block.getBlockType();
