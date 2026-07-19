@@ -28,7 +28,7 @@ bool SafeTeleport::Task::operator==(const Task& other) const { return mId == oth
 inline SafeTeleport::TaskId NextTaskId = 0;
 SafeTeleport::Task::Task(Player& player, DimensionPos targetPos)
 : mId(NextTaskId++),
-  mWeakPlayer(player.getWeakEntity()),
+  mWeakPlayer(player.getEntityContext().getWeakRef()),
   mChunkSource(player.getDimensionBlockSource().getChunkSource()),
   mTargetChunkPos(ChunkPos(targetPos.first)),
   mCachedLocaleCode(player.getLocaleCode()),
