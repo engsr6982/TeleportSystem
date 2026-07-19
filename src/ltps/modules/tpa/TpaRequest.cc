@@ -33,8 +33,8 @@ struct TpaRequest::Impl {
     SteadyTime             mExpirationTime; // 请求失效时间
 
     explicit Impl(Player& sender, Player& receiver, Type type)
-    : mSender(sender.getWeakEntity()),
-      mReceiver(receiver.getWeakEntity()),
+    : mSender(sender.getEntityContext().getWeakRef()),
+      mReceiver(receiver.getEntityContext().getWeakRef()),
       mSenderUUID(sender.getUuid()),
       mReceiverUUID(receiver.getUuid()),
       mType(type),
