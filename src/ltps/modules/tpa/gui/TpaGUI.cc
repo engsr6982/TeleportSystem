@@ -5,6 +5,7 @@
 #include "ll/api/service/Bedrock.h"
 #include "ltps/modules/tpa/TpaRequest.h"
 #include "ltps/modules/tpa/event/TpaEvents.h"
+#include "ltps/utils/McUtils.h"
 #include "mc/world/level/Level.h"
 #include <memory>
 
@@ -41,13 +42,20 @@ void TpaGUI::sendChooseTpaPlayerMenu(Player& player, TpaRequest::Type type) {
 
     auto fm = ll::form::SimpleForm{"Tpa - 发起传送请求"_trl(localeCode), "选择一个玩家"_trl(localeCode)};
 
-    level->forEachPlayer([&fm, type](Player& target) {
-        fm.appendButton(target.getRealName(), [&target, type](Player& self) {
-            // clang-format off
+    level->forEachPlayer([&fm, level, type](Player& target) {
+        auto targetUuid = target.getUuid();
+
+        fm.appendButton(target.getRealName(), [level, targetUuid, type](Player& self) {
+            auto receiver = level->getPlayer(targetUuid);
+            if (!receiver) {
+                mc_utils::sendText<mc_utils::Error>(self, "该玩家已离线"_trl(self.getLocaleCode()));
+                return;
+            }
+
             ll::event::EventBus::getInstance().publish(
                 CreateTpaRequestEvent{
                     self,
-                    target,
+                    *receiver,
                     type,
                     [](std::shared_ptr<TpaRequest> request) {
                         if (request) {
@@ -56,7 +64,6 @@ void TpaGUI::sendChooseTpaPlayerMenu(Player& player, TpaRequest::Type type) {
                     }
                 }
             );
-            // clang-format on
         });
         return true;
     });
