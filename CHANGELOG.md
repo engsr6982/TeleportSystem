@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-11
+
+- 适配 LeviLamina v26.20.x
+- 修复 TPA 传送离线玩家崩溃 #36 @LONGGE322
+
 ## [0.17.0] - 2026-04-10
 
 - 适配 LeviLamina v26.10.0
