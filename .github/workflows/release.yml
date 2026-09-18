@@ -21,7 +21,10 @@ jobs:
           restore-keys: |
             xmake-
 
-      - uses: microsoft/setup-msbuild@v2
+      - name: Setup LLVM
+        uses: ZhongRuoyu/setup-llvm@v0
+        with:
+          llvm-version: 22
 
       - run: |
           xmake repo -u
@@ -81,35 +84,3 @@ jobs:
         with:
           files: |
             ${{ github.event.repository.name }}-windows-x64.zip
-
-  # upload-to-minebbs:
-  #   needs:
-  #     - build
-  #     - update-release-notes
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     # 检出代码
-  #     - uses: actions/checkout@v4
-
-  #     # 下载构建产物
-  #     - uses: actions/download-artifact@v4
-  #       with:
-  #         name: ${{ github.event.repository.name }}-windows-x64-${{ github.sha }}
-  #         path: artifact
-
-  #     # 复制文件
-  #     - run: |
-  #         cp CHANGELOG.md README.md artifact/
-
-  #     # 重新打包
-  #     - run: |
-  #         zip -r ../${{ github.event.repository.name }}-windows-x64.zip *
-  #       working-directory: artifact
-
-  #     - name: Upload to MineBBS
-  #       uses: engsr6982/upload-minebbs@v2
-  #       with:
-  #         minebbs_token: ${{ secrets.MINEBBS_TOKEN }}
-  #         resource_id: "5755" #! 务必确保资源ID正确
-  #         upload_file: ${{ github.event.repository.name }}-windows-x64.zip
-  #         update_description: ${{ needs.update-release-notes.outputs.release_notes }} # 使用 update-release-notes 步骤的输出
