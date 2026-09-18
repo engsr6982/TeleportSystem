@@ -20,6 +20,7 @@
 #include <mc/world/level/chunk/LevelChunk.h>
 #include <mc/world/level/dimension/Dimension.h>
 
+SetTitlePacketPayload::SetTitlePacketPayload() = default;
 namespace ltps::tpr {
 
 
@@ -34,6 +35,7 @@ SafeTeleport::Task::Task(Player& player, DimensionPos targetPos)
   mCachedLocaleCode(player.getLocaleCode()),
   mSourcePos({player.getPosition(), player.getDimensionId()}),
   mTargetPos(targetPos) {
+    mTipPacket.mType    = SetTitlePacket::TitleType::Actionbar;
     mTargetPos.first.x += 0.5; // 方块中心
     mTargetPos.first.z += 0.5;
     mTargetPos.first.y  = 3389;
@@ -162,7 +164,8 @@ void SafeTeleport::Task::_findSafePos() {
         logger.debug("[TPR] Y: {}  Block: {}", y, block->getTypeName());
 #endif
 
-        if (!block->isAir() &&                                 // 落脚点不是空气
+        if (
+            !block->isAir() &&                                 // 落脚点不是空气
             !dangerousBlocks.contains(block->getTypeName()) && // 落脚点不是危险方块
             headBlock->isAir() &&                              // 头部方块是空气
             legBlock->isAir()                                  // 腿部方块是空气

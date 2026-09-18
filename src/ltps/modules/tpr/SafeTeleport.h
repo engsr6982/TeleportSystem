@@ -44,18 +44,18 @@ public:
     };
 
     class Task {
-        static inline constexpr short MaxCounter = 64;                                  // 最大计数器值
-        TaskId const                  mId;                                              // 任务ID
-        WeakRef<EntityContext>        mWeakPlayer;                                      // 玩家
-        ChunkSource&                  mChunkSource;                                     // 区块源
-        ChunkPos                      mTargetChunkPos;                                  // 目标区块位置
-        std::string const             mCachedLocaleCode;                                // 玩家语言代码
-        DimensionPos const            mSourcePos;                                       // 原位置
-        DimensionPos                  mTargetPos;                                       // 目标位置
-        TaskState                     mState{TaskState::Pending};                       // 任务状态
-        short                         mCounter{0};                                      // 计数器
-        SetTitlePacket                mTipPacket{SetTitlePacket::TitleType::Actionbar}; // 提示包
-        std::atomic<bool>             mAbortFlag{false};                                // 终止标志
+        static inline constexpr short MaxCounter = 64;            // 最大计数器值
+        TaskId const                  mId;                        // 任务ID
+        WeakRef<EntityContext>        mWeakPlayer;                // 玩家
+        ChunkSource&                  mChunkSource;               // 区块源
+        ChunkPos                      mTargetChunkPos;            // 目标区块位置
+        std::string const             mCachedLocaleCode;          // 玩家语言代码
+        DimensionPos const            mSourcePos;                 // 原位置
+        DimensionPos                  mTargetPos;                 // 目标位置
+        TaskState                     mState{TaskState::Pending}; // 任务状态
+        short                         mCounter{0};                // 计数器
+        SetTitlePacket                mTipPacket{};               // 提示包
+        std::atomic<bool>             mAbortFlag{false};          // 终止标志
 
         void _findSafePos();
         void _tryApplyDimensionFixPatch(DimensionHeightRange const& range); // 尝试应用维度修复补丁
