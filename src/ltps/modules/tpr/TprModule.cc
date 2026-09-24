@@ -5,7 +5,9 @@
 #include "ltps/TeleportSystem.h"
 #include "ltps/base/Config.h"
 #include "ltps/common/PriceCalculate.h"
+#include "ltps/helper/EconomyHelper.h"
 #include "ltps/utils/McUtils.h"
+
 
 #include <ll/api/event/EventBus.h>
 
@@ -84,9 +86,9 @@ bool TprModule::enable() {
             return;
         }
 
-        auto& eco = EconomySystemManager::getInstance();
-        if (!eco->reduce(player, price.value())) {
-            eco->sendNotEnoughMoneyMessage(player, price.value(), player.getLocaleCode());
+        auto& eco = TeleportSystem::getInstance().getEconomy();
+        if (!eco.reduce(player.getUuid(), price.value())) {
+            economy_helper::sendNotEnoughMoneyMessage(player, price.value(), player.getLocaleCode());
             ev.cancel();
             return;
         }

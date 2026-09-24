@@ -5,10 +5,13 @@
 #include "ltps/TeleportSystem.h"
 #include "ltps/base/Config.h"
 #include "ltps/common/PriceCalculate.h"
+#include "ltps/helper/EconomyHelper.h"
 #include "ltps/modules/tpa/TpaCommand.h"
 #include "ltps/modules/tpa/TpaRequest.h"
 #include "ltps/modules/tpa/event/TpaEvents.h"
 #include "ltps/utils/McUtils.h"
+
+
 #include <algorithm>
 
 
@@ -95,9 +98,9 @@ bool TpaModule::enable() {
 
             auto price = static_cast<llong>(*clValue);
 
-            auto economy = EconomySystemManager::getInstance().getEconomySystem();
-            if (!economy->reduce(sender, price)) {
-                economy->sendNotEnoughMoneyMessage(sender, price, localeCode);
+            auto& economy = TeleportSystem::getInstance().getEconomy();
+            if (!economy.reduce(sender.getUuid(), price)) {
+                economy_helper::sendNotEnoughMoneyMessage(sender, price, localeCode);
                 ev.cancel();
             }
         },

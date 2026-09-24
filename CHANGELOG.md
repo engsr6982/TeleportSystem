@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-25
+
+- 适配 LeviLamina v26.40.x
+- 添加遥测功能
+- 支持计分板经济
+
 ## [0.18.0] - 2026-08-11
 
 - 适配 LeviLamina v26.20.x

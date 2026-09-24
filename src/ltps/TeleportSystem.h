@@ -9,6 +9,13 @@
 
 #include <ll/api/thread/ServerThreadExecutor.h>
 
+namespace ll_bstats {
+class Telemetry;
+}
+namespace econbridge {
+class IEconomy;
+}
+
 namespace ltps {
 
 class TeleportSystem {
@@ -23,6 +30,8 @@ public:
 
     bool unload();
 
+    void postReload();
+
 public:
     [[nodiscard]] ll::mod::NativeMod& getSelf() const;
 
@@ -34,14 +43,22 @@ public:
 
     [[nodiscard]] ModuleManager& getModuleManager();
 
+    [[nodiscard]] econbridge::IEconomy&       getEconomy();
+    [[nodiscard]] econbridge::IEconomy const& getEconomy() const;
+
 private:
     explicit TeleportSystem();
 
+    void postInitTelemetry();
+    void postInitEconomy();
+
     ll::mod::NativeMod&                               mSelf;
-    std::unique_ptr<ll::thread::ThreadPoolExecutor>   mThreadPool;
-    std::unique_ptr<ll::thread::ServerThreadExecutor> mServerThreadExecutor;
-    std::unique_ptr<StorageManager>                   mStorageManager;
-    std::unique_ptr<ModuleManager>                    mModuleManager;
+    std::unique_ptr<ll::thread::ThreadPoolExecutor>   mThreadPool{nullptr};
+    std::unique_ptr<ll::thread::ServerThreadExecutor> mServerThreadExecutor{nullptr};
+    std::unique_ptr<StorageManager>                   mStorageManager{nullptr};
+    std::unique_ptr<ModuleManager>                    mModuleManager{nullptr};
+    std::unique_ptr<ll_bstats::Telemetry>             mTelemetry{nullptr};
+    std::unique_ptr<econbridge::IEconomy>             mEconomy{nullptr};
 };
 
 } // namespace ltps

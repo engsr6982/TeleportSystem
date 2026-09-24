@@ -1,5 +1,6 @@
 #include "DeathModule.h"
 
+#include "../setting/SettingStorage.h"
 #include "DeathCommand.h"
 #include "event/DeathEvents.h"
 #include "gui/DeathGUI.h"
@@ -7,9 +8,10 @@
 #include "ltps/base/Config.h"
 #include "ltps/common/PriceCalculate.h"
 #include "ltps/database/StorageManager.h"
+#include "ltps/helper/EconomyHelper.h"
 #include "ltps/utils/McUtils.h"
 
-#include "../setting/SettingStorage.h"
+
 #include "ll/api/event/player/PlayerDieEvent.h"
 #include "ll/api/event/player/PlayerRespawnEvent.h"
 
@@ -87,9 +89,9 @@ bool DeathModule::enable() {
                 return;
             }
 
-            if (const auto& economy = EconomySystemManager::getInstance();
-                !economy->reduce(player, static_cast<llong>(price.value()))) {
-                economy->sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
+            if (auto& economy = TeleportSystem::getInstance().getEconomy();
+                !economy.reduce(player.getUuid(), static_cast<llong>(price.value()))) {
+                economy_helper::sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
                 ev.cancel();
                 return;
             }
@@ -117,18 +119,19 @@ bool DeathModule::enable() {
         mc_utils::sendText(player, "本次死亡信息已记录，使用 /death back 可以返回死亡点"_trl(player.getLocaleCode()));
     }));
 
-    mListeners.emplace_back(bus.emplaceListener<ll::event::PlayerRespawnEvent>([this](ll::event::PlayerRespawnEvent& ev
-                                                                               ) {
-        auto& player = ev.self();
-        if (player.isSimulatedPlayer()) {
-            return;
-        }
+    mListeners.emplace_back(
+        bus.emplaceListener<ll::event::PlayerRespawnEvent>([this](ll::event::PlayerRespawnEvent& ev) {
+            auto& player = ev.self();
+            if (player.isSimulatedPlayer()) {
+                return;
+            }
 
-        if (auto ps = getStorageManager().getStorage<setting::SettingStorage>();
-            ps && ps->getSettingData(player.getRealName())->deathPopup) {
-            DeathGUI::sendBackGUI(player);
-        }
-    }));
+            if (auto ps = getStorageManager().getStorage<setting::SettingStorage>();
+                ps && ps->getSettingData(player.getRealName())->deathPopup) {
+                DeathGUI::sendBackGUI(player);
+            }
+        })
+    );
 
 
     DeathCommand::setup();

@@ -1,7 +1,7 @@
 #pragma once
-#include "ll/api/io/LogLevel.h"
 #include "ltps/Global.h"
-#include "ltps/common/EconomySystem.h"
+#include "ltps/common/EconomySystemConfig.h"
+
 #include <filesystem>
 #include <unordered_set>
 
@@ -18,9 +18,9 @@ namespace v5 {
 using DisallowedDimensions = std::unordered_set<int>;
 
 struct Config {
-    int              version  = 11;
-    EconomySystem::Config economySystem{};
-
+    int                 version = 12;
+    EconomySystemConfig economySystem{};
+    bool                telemetry{true}; // 是否发送匿名统计信息
     struct {
         struct {
             bool                 enable                 = true;
@@ -71,7 +71,7 @@ struct Config {
             };
 
             struct {
-                bool enable = false;
+                bool enable   = false;
                 bool isCircle = true; // true: Circle  false: CenteredSquare
 
                 struct {

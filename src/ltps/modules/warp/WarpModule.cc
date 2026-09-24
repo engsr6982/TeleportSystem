@@ -7,7 +7,9 @@
 #include "ltps/common/PriceCalculate.h"
 #include "ltps/database/PermissionStorage.h"
 #include "ltps/database/StorageManager.h"
+#include "ltps/helper/EconomyHelper.h"
 #include "ltps/utils/McUtils.h"
+
 
 #include <ll/api/event/EventBus.h>
 
@@ -96,9 +98,9 @@ bool WarpModule::enable() {
                 return;
             }
 
-            if (const auto& economy = EconomySystemManager::getInstance();
-                !economy->reduce(player, static_cast<llong>(price.value()))) {
-                economy->sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
+            if (auto& economy = TeleportSystem::getInstance().getEconomy();
+                !economy.reduce(player.getUuid(), static_cast<llong>(price.value()))) {
+                economy_helper::sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
                 ev.cancel();
                 return;
             }

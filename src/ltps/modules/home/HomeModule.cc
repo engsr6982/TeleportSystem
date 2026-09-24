@@ -5,10 +5,10 @@
 #include "ltps/Global.h"
 #include "ltps/TeleportSystem.h"
 #include "ltps/base/Config.h"
-#include "ltps/common/EconomySystem.h"
 #include "ltps/common/PriceCalculate.h"
 #include "ltps/database/PermissionStorage.h"
 #include "ltps/database/StorageManager.h"
+#include "ltps/helper/EconomyHelper.h"
 #include "ltps/modules/home/HomeCommand.h"
 #include "ltps/modules/home/event/HomeEvents.h"
 #include "ltps/utils/McUtils.h"
@@ -145,10 +145,10 @@ bool HomeModule::enable() {
                 return;
             }
 
-            auto& economy = EconomySystemManager::getInstance();
-            if (!economy->reduce(player, static_cast<llong>(price.value()))) {
+            auto& economy = TeleportSystem::getInstance().getEconomy();
+            if (!economy.reduce(player.getUuid(), static_cast<llong>(price.value()))) {
                 // mc_utils::sendText<mc_utils::Error>(player, "经济不足，无法创建"_trl(localeCode));
-                economy->sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
+                economy_helper::sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
                 ev.cancel();
                 return;
             }
@@ -272,9 +272,9 @@ bool HomeModule::enable() {
                 return;
             }
 
-            if (const auto& economy = EconomySystemManager::getInstance();
-                !economy->reduce(player, static_cast<llong>(price.value()))) {
-                economy->sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
+            if (auto& economy = TeleportSystem::getInstance().getEconomy();
+                !economy.reduce(player.getUuid(), static_cast<llong>(price.value()))) {
+                economy_helper::sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
                 ev.cancel();
                 return;
             }

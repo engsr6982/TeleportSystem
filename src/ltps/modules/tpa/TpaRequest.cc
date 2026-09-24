@@ -6,7 +6,6 @@
 #include "ll/api/i18n/I18n.h"
 #include "ltps/TeleportSystem.h"
 #include "ltps/base/Config.h"
-#include "ltps/common/EconomySystem.h"
 #include "ltps/database/StorageManager.h"
 #include "ltps/modules/tpa/event/TpaEvents.h"
 #include "ltps/utils/McUtils.h"

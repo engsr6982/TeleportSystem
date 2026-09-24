@@ -1,10 +1,9 @@
+#include "ltps/TeleportSystem.h"
 #include "ll/api/mod/NativeMod.h"
 #include "ll/api/mod/RegisterHelper.h"
-#include "ltps/TeleportSystem.h"
 #include "ltps/Version.h"
 #include "ltps/base/BaseCommand.h"
 #include "ltps/base/Config.h"
-#include "ltps/common/EconomySystem.h"
 #include "ltps/database/PermissionStorage.h"
 #include "ltps/database/StorageManager.h"
 #include "ltps/modules/ModuleManager.h"
@@ -18,6 +17,13 @@
 #include "modules/setting/SettingStorage.h"
 #include "modules/tpr/TprModule.h"
 #include <memory>
+
+#include "econbridge/IEconomy.h"
+#include "econbridge/detail/LegacyMoneyEconomy.h"
+#include "econbridge/detail/NullEconomy.h"
+#include "econbridge/detail/ScoreboardEconomy.h"
+
+#include "ll-bstats/Telemetry.h"
 
 
 namespace ltps {
@@ -59,7 +65,7 @@ bool TeleportSystem::load() {
     // 初始化全局配置
     loadConfig();
 
-    EconomySystemManager::getInstance().initEconomySystem();
+    postInitEconomy();
 
     // 注册 Storage
     mStorageManager->registerStorage<PermissionStorage>();
@@ -84,6 +90,8 @@ bool TeleportSystem::load() {
 bool TeleportSystem::enable() {
     mModuleManager->enableModules(); // 启用模块
     BaseCommand::setup();            // 基础命令
+
+    this->postInitTelemetry(); // 初始化 bStats
 
 #ifdef TPS_TEST
     test::Test_Main();
@@ -110,14 +118,48 @@ bool TeleportSystem::unload() {
     return true;
 }
 
+void TeleportSystem::postInitTelemetry() {
+    bool enabled = getConfig().telemetry;
+    if (enabled && !mTelemetry) {
+        mTelemetry = std::make_unique<ll_bstats::Telemetry>(34271, LTPS_VERSION_STRING);
+    } else if (!enabled && mTelemetry) {
+        mTelemetry.reset();
+    }
+}
+void TeleportSystem::postInitEconomy() {
+    auto& conf = getConfig().economySystem;
+
+    if (!conf.enabled) {
+        mEconomy = std::make_unique<econbridge::detail::NullEconomy>();
+    } else {
+        switch (conf.kit) {
+        case EconomyKit::LegacyMoney:
+            mEconomy = std::make_unique<econbridge::detail::LegacyMoneyEconomy>();
+            break;
+        case EconomyKit::ScoreBoard:
+            mEconomy = std::make_unique<econbridge::detail::ScoreboardEconomy>(conf.scoreboardName);
+            break;
+        }
+    }
+}
+
+void TeleportSystem::postReload() {
+    loadConfig();
+    TeleportSystem::getInstance().getModuleManager().reconfigureModules();
+    postInitEconomy();
+    postInitTelemetry();
+}
+
 TeleportSystem::TeleportSystem() : mSelf(*ll::mod::NativeMod::current()) {}
 ll::mod::NativeMod&                     TeleportSystem::getSelf() const { return mSelf; }
 ll::thread::ThreadPoolExecutor&         TeleportSystem::getThreadPool() { return *mThreadPool; }
 ll::thread::ServerThreadExecutor const& TeleportSystem::getServerThreadExecutor() const {
     return *mServerThreadExecutor;
 }
-StorageManager& TeleportSystem::getStorageManager() { return *mStorageManager; }
-ModuleManager&  TeleportSystem::getModuleManager() { return *mModuleManager; }
+StorageManager&             TeleportSystem::getStorageManager() { return *mStorageManager; }
+ModuleManager&              TeleportSystem::getModuleManager() { return *mModuleManager; }
+econbridge::IEconomy&       TeleportSystem::getEconomy() { return *mEconomy; }
+econbridge::IEconomy const& TeleportSystem::getEconomy() const { return *mEconomy; }
 
 } // namespace ltps
 
