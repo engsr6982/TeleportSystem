@@ -30,7 +30,6 @@ bool WarpModule::enable() {
             auto& bus = ll::event::EventBus::getInstance();
 
             auto& player     = ev.getPlayer();
-            auto  realName   = player.getRealName();
             auto  localeCode = player.getLocaleCode();
             auto& name       = ev.getName();
 
@@ -41,7 +40,7 @@ bool WarpModule::enable() {
 
             auto warp = storage->getWarp(name);
             if (!warp) {
-                mc_utils::sendText<mc_utils::Error>(player, "公共传送点 {} 不存在"_trl(localeCode, name));
+                mc_utils::sendText<mc_utils::Error>(player, "Public warp {} does not exist"_trl(localeCode, name));
                 ev.cancel();
                 return;
             }
@@ -70,11 +69,15 @@ bool WarpModule::enable() {
             auto  localeCode = player.getLocaleCode();
 
             auto& cooldown = getCooldown();
+            auto  uuidKey  = player.getUuid().asString();
 
-            if (cooldown.isCooldown(realName)) {
+            if (cooldown.isCooldown(uuidKey)) {
                 mc_utils::sendText(
                     player,
-                    "传送冷却中, 请稍后重试，冷却时间: {}"_trl(localeCode, cooldown.getCooldownString(realName))
+                    "Teleport on cooldown, please retry later. Remaining: {}"_trl(
+                        localeCode,
+                        cooldown.getCooldownString(uuidKey)
+                    )
                 );
                 ev.cancel();
                 return;
@@ -85,12 +88,12 @@ bool WarpModule::enable() {
             auto price = cl.eval();
 
             if (!price) {
-                mc_utils::sendText<mc_utils::Error>(player, "计算价格失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to calculate price"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[WarpModule]: Calculate price failed! player: {}, warpName: {}, error: {}",
                     realName,
                     ev.getWarp().name,
-                    price.error()
+                    price.error().message()
                 );
                 ev.cancel();
                 return;
@@ -103,7 +106,7 @@ bool WarpModule::enable() {
                 return;
             }
 
-            cooldown.setCooldown(realName, getConfig().modules.warp.cooldownTime);
+            cooldown.setCooldown(uuidKey, getConfig().modules.warp.cooldownTime);
         },
         ll::event::EventPriority::High
     ));
@@ -131,18 +134,18 @@ bool WarpModule::enable() {
 
             auto res = storage->addWarp(warp);
             if (!res) {
-                mc_utils::sendText<mc_utils::Error>(player, "添加公共传送点失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to add public warp"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[WarpModule]: Add warp failed! player: {}, warpName: {}, error: {}",
                     realName,
                     warp.name,
-                    res.error()
+                    res.error().message()
                 );
                 ev.cancel();
                 return;
             }
 
-            mc_utils::sendText(player, "添加公共传送点成功"_trl(localeCode));
+            mc_utils::sendText(player, "Public warp added"_trl(localeCode));
 
             auto added = WarpAddedEvent(player, warp);
             bus.publish(added);
@@ -160,25 +163,33 @@ bool WarpModule::enable() {
 
             auto&           player     = ev.getPlayer();
             auto            localeCode = player.getLocaleCode();
-            RealName const& realName   = player.getRealName();
 
             auto const& dimid = ev.getWarp().dimid;
             if (getConfig().modules.warp.disallowedDimensions.contains(dimid)) {
-                mc_utils::sendText<mc_utils::Error>(player, "该维度无法创建公共传送点"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Public warps cannot be created in this dimension"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
 
             auto pe = getStorageManager().getStorage<PermissionStorage>();
-            if (pe && !pe->hasPermission(realName, PermissionStorage::Permission::AddWarp)) {
-                mc_utils::sendText<mc_utils::Error>(player, "你没有权限创建公共传送点"_trl(localeCode));
+            if (pe && !pe->hasPermission(player.getUuid(), PermissionStorage::Permission::AddWarp)) {
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "You do not have permission to create public warps"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
 
             auto const& warpName = ev.getWarp().name;
             if (storage->hasWarp(warpName)) {
-                mc_utils::sendText<mc_utils::Error>(player, "公共传送点名称重复，请使用其它名称"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Warp name already exists, please use another name"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
@@ -208,18 +219,18 @@ bool WarpModule::enable() {
 
             auto res = storage->removeWarp(name);
             if (!res) {
-                mc_utils::sendText<mc_utils::Error>(player, "删除公共传送点失败"_trl(player.getLocaleCode()));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to remove public warp"_trl(player.getLocaleCode()));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[WarpModule]: Remove warp failed! player: {}, warpName: {}, error: {}",
                     player.getRealName(),
                     name,
-                    res.error()
+                    res.error().message()
                 );
                 ev.invokeCallback(false);
                 ev.cancel();
                 return;
             }
-            mc_utils::sendText(player, "删除公共传送点 {} 成功!"_trl(player.getLocaleCode(), name));
+            mc_utils::sendText(player, "Public warp {} removed!"_trl(player.getLocaleCode(), name));
 
             auto removed = WarpRemovedEvent(player, name);
             bus.publish(removed);
@@ -232,11 +243,13 @@ bool WarpModule::enable() {
         [this](WarpRemovingEvent& ev) {
             auto&           player     = ev.getPlayer();
             auto            localeCode = player.getLocaleCode();
-            RealName const& realName   = player.getRealName();
 
             auto pe = getStorageManager().getStorage<PermissionStorage>();
-            if (pe && !pe->hasPermission(realName, PermissionStorage::Permission::RemoveWarp)) {
-                mc_utils::sendText<mc_utils::Error>(player, "你没有权限删除公共传送点"_trl(localeCode));
+            if (pe && !pe->hasPermission(player.getUuid(), PermissionStorage::Permission::RemoveWarp)) {
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "You do not have permission to remove public warps"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
@@ -287,11 +300,11 @@ bool WarpModule::enable() {
 
             auto storage = this->getStorage();
             if (auto res = storage->addWarp(warp)) {
-                mc_utils::sendText(player, "创建公共传送点 {} 成功"_trl(localeCode, name));
+                mc_utils::sendText(player, "Public warp {} created"_trl(localeCode, name));
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "创建公共传送点 {} 失败: {}"_trl(localeCode, name, res.error())
+                    "Failed to create public warp {}: {}"_trl(localeCode, name, res.error().message())
                 );
             }
         },
@@ -305,13 +318,19 @@ bool WarpModule::enable() {
             auto  dimid      = ev.getDimid();
 
             if (getConfig().modules.warp.disallowedDimensions.contains(dimid)) {
-                mc_utils::sendText<mc_utils::Error>(player, "该维度无法创建公共传送点"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Public warps cannot be created in this dimension"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
 
             if (getStorage()->hasWarp(name)) {
-                mc_utils::sendText<mc_utils::Error>(player, "公共传送点名称重复，请使用其它名称"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Warp name already exists, please use another name"_trl(localeCode)
+                );
                 ev.cancel();
                 return;
             }
@@ -335,11 +354,11 @@ bool WarpModule::enable() {
 
             auto storage = this->getStorage();
             if (auto res = storage->updateWarp(warp.name, newWarp)) {
-                mc_utils::sendText(player, "修改公共传送点 {} 成功"_trl(player.getLocaleCode(), warp.name));
+                mc_utils::sendText(player, "Public warp {} updated"_trl(player.getLocaleCode(), warp.name));
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "修改公共传送点 {} 失败: {}"_trl(player.getLocaleCode(), warp.name, res.error())
+                    "Failed to update public warp {}: {}"_trl(player.getLocaleCode(), warp.name, res.error().message())
                 );
             }
 
@@ -365,11 +384,11 @@ bool WarpModule::enable() {
 
             auto storage = this->getStorage();
             if (auto res = storage->removeWarp(warp.name)) {
-                mc_utils::sendText(player, "删除公共传送点 {} 成功"_trl(player.getLocaleCode(), warp.name));
+                mc_utils::sendText(player, "Public warp {} removed"_trl(player.getLocaleCode(), warp.name));
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "删除公共传送点 {} 失败: {}"_trl(player.getLocaleCode(), warp.name, res.error())
+                    "Failed to remove public warp {}: {}"_trl(player.getLocaleCode(), warp.name, res.error().message())
                 );
                 return;
             }

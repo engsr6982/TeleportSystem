@@ -63,7 +63,7 @@ void SafeTeleport::Task::updateCounter() { mCounter++; }
 
 void SafeTeleport::Task::sendWaitChunkLoadTip() {
     if (auto player = getPlayer()) {
-        mTipPacket.mTitleText = "等待区块加载... ({}/{})"_trl(mCachedLocaleCode, mCounter, MaxCounter);
+        mTipPacket.mTitleText = "Waiting for chunk to load... ({}/{})"_trl(mCachedLocaleCode, mCounter, MaxCounter);
         mTipPacket.sendTo(*player);
     }
 }
@@ -269,7 +269,7 @@ void SafeTeleport::polling() {
 }
 
 void SafeTeleport::handlePending(SharedTask& task) {
-    mc_utils::sendText(*task->getPlayer(), "[1/4] 任务已创建"_trl(task->mCachedLocaleCode));
+    mc_utils::sendText(*task->getPlayer(), "[1/4] Task created"_trl(task->mCachedLocaleCode));
 
     if (task->isTargetChunkFullyLoaded()) {
         task->updateState(TaskState::ChunkLoaded);
@@ -277,29 +277,29 @@ void SafeTeleport::handlePending(SharedTask& task) {
         task->updateState(TaskState::WaitingChunkLoad);
         mc_utils::sendText(
             *task->getPlayer(),
-            "[2/4] 目标区块未加载，等待目标区块加载..."_trl(task->mCachedLocaleCode)
+            "[2/4] Target chunk not loaded, waiting..."_trl(task->mCachedLocaleCode)
         );
     }
 }
 void SafeTeleport::handleWaitingChunkLoad(SharedTask& task) { task->checkChunkStatus(); }
 void SafeTeleport::handleChunkLoadTimeout(SharedTask& task) {
-    mc_utils::sendText(*task->getPlayer(), "[2/4] 目标区块加载超时，正在返回原位置..."_trl(task->mCachedLocaleCode));
+    mc_utils::sendText(*task->getPlayer(), "[2/4] Target chunk load timed out, returning..."_trl(task->mCachedLocaleCode));
     task->rollback();
     task->updateState(TaskState::TaskFailed);
 }
 void SafeTeleport::handleChunkLoaded(SharedTask& task) {
-    mc_utils::sendText(*task->getPlayer(), "[3/4] 区块已加载，正在寻找安全位置..."_trl(task->mCachedLocaleCode));
+    mc_utils::sendText(*task->getPlayer(), "[3/4] Chunk loaded, searching for a safe position..."_trl(task->mCachedLocaleCode));
     task->launchFindPosTask(mServerThreadExecutor);
     task->updateState(TaskState::FindingSafePos);
 }
 
 void SafeTeleport::handleFoundSafePos(SharedTask& task) {
-    mc_utils::sendText(*task->getPlayer(), "[4/4] 安全位置已找到，正在传送..."_trl(task->mCachedLocaleCode));
+    mc_utils::sendText(*task->getPlayer(), "[4/4] Safe position found, teleporting..."_trl(task->mCachedLocaleCode));
     task->commit();
     task->updateState(TaskState::TaskCompleted);
 }
 void SafeTeleport::handleNoSafePos(SharedTask& task) {
-    mc_utils::sendText(*task->getPlayer(), "[3/4] 未找到安全位置，正在返回原位置..."_trl(task->mCachedLocaleCode));
+    mc_utils::sendText(*task->getPlayer(), "[3/4] No safe position found, returning..."_trl(task->mCachedLocaleCode));
     task->rollback();
     task->updateState(TaskState::TaskFailed);
 }

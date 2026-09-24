@@ -43,7 +43,7 @@ void HomeCommand::setup() {
     // home
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
 
@@ -55,7 +55,7 @@ void HomeCommand::setup() {
     cmd.overload<HomeListParam>().text("list").optional("name").execute(
         [](CommandOrigin const& origin, CommandOutput& output, HomeListParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
 
@@ -64,9 +64,8 @@ void HomeCommand::setup() {
             auto  storage    = TeleportSystem::getInstance().getStorageManager().getStorage<HomeStorage>();
 
             if (param.name.empty()) {
-                auto& homes = storage->getHomes(player.getRealName());
-                // 进行 join name 操作
-                std::string text = "您共有 {} 个家园:"_trl(localeCode, homes.size());
+                auto homes = storage->getHomes(player.getUuid());
+                std::string text = "You have {} home(s):"_trl(localeCode, homes.size());
                 for (const auto& home : homes) {
                     text += fmt::format(" ,{}", home.name);
                 }
@@ -74,15 +73,15 @@ void HomeCommand::setup() {
                 return;
             }
 
-            auto home = storage->getHome(player.getRealName(), param.name);
+            auto home = storage->getHome(player.getUuid(), param.name);
             if (!home) {
-                mc_utils::sendText<mc_utils::Error>(output, "未找到该家园"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(output, "Home not found"_trl(localeCode));
                 return;
             }
 
             mc_utils::sendText(
                 output,
-                "家园名称: {} 坐标：{},{},{} 维度: {} 创建时间: {} 修改时间: {}"_trl(
+                "Name: {} Pos: {},{},{} Dim: {} Created: {} Modified: {}"_trl(
                     localeCode,
                     home->name,
                     home->x,
@@ -100,7 +99,7 @@ void HomeCommand::setup() {
     cmd.overload<HomeActionParam>().required("action").required("name").execute(
         [](CommandOrigin const& origin, CommandOutput& output, HomeActionParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
 
@@ -127,7 +126,7 @@ void HomeCommand::setup() {
     cmd.overload<HomeUpdateParam>().text("update").required("type").required("name").optional("newName").execute(
         [](CommandOrigin const& origin, CommandOutput& output, HomeUpdateParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
 
@@ -136,7 +135,7 @@ void HomeCommand::setup() {
             switch (param.type) {
             case PlayerRequestEditHomeEvent::Type::Name: {
                 if (param.newName.empty()) {
-                    mc_utils::sendText<mc_utils::Error>(output, "新名称不能为空!"_trl(player.getLocaleCode()));
+                    mc_utils::sendText<mc_utils::Error>(output, "New name cannot be empty!"_trl(player.getLocaleCode()));
                     return;
                 }
                 ll::event::EventBus::getInstance().publish(
@@ -158,7 +157,7 @@ void HomeCommand::setup() {
     // home mgr
     cmd.overload().text("mgr").execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
 
@@ -166,8 +165,11 @@ void HomeCommand::setup() {
 
         auto st = TeleportSystem::getInstance().getStorageManager().getStorage<PermissionStorage>();
 
-        if (!st->hasPermission(player.getRealName(), PermissionStorage::Permission::ManagerPanel)) {
-            mc_utils::sendText<mc_utils::Error>(output, "你没有权限使用此命令"_trl(player.getLocaleCode()));
+        if (!st->hasPermission(player.getUuid(), PermissionStorage::Permission::ManagerPanel)) {
+            mc_utils::sendText<mc_utils::Error>(
+                output,
+                "You do not have permission to use this command"_trl(player.getLocaleCode())
+            );
             return;
         }
 

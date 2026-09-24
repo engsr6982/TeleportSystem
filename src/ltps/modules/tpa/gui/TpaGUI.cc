@@ -20,9 +20,9 @@ void TpaGUI::sendMainMenu(Player& player) {
 void TpaGUI::sendChooseTpaTypeMenu(Player& player, ChooseTpaTypeCallback callback) {
     auto const localeCode = player.getLocaleCode();
 
-    ll::form::SimpleForm{"Tpa 菜单"_trl(localeCode), "你想如何传送？"_trl(localeCode)}
-        .appendButton("传送到其他玩家"_trl(localeCode))
-        .appendButton("让其他玩家传送过来"_trl(localeCode))
+    ll::form::SimpleForm{"TPA Menu"_trl(localeCode), "How do you want to teleport?"_trl(localeCode)}
+        .appendButton("Teleport to another player"_trl(localeCode))
+        .appendButton("Ask another player to teleport here"_trl(localeCode))
         .sendTo(player, [fn = std::move(callback)](Player& self, int index, ll::form::FormCancelReason) {
             if (index == -1) {
                 return;
@@ -40,7 +40,7 @@ void TpaGUI::sendChooseTpaPlayerMenu(Player& player, TpaRequest::Type type) {
 
     auto const localeCode = player.getLocaleCode();
 
-    auto fm = ll::form::SimpleForm{"Tpa - 发起传送请求"_trl(localeCode), "选择一个玩家"_trl(localeCode)};
+    auto fm = ll::form::SimpleForm{"TPA - Send a request"_trl(localeCode), "Choose a player"_trl(localeCode)};
 
     level->forEachPlayer([&fm, level, type](Player& target) {
         auto targetUuid = target.getUuid();
@@ -48,7 +48,7 @@ void TpaGUI::sendChooseTpaPlayerMenu(Player& player, TpaRequest::Type type) {
         fm.appendButton(target.getRealName(), [level, targetUuid, type](Player& self) {
             auto receiver = level->getPlayer(targetUuid);
             if (!receiver) {
-                mc_utils::sendText<mc_utils::Error>(self, "该玩家已离线"_trl(self.getLocaleCode()));
+                mc_utils::sendText<mc_utils::Error>(self, "That player is offline"_trl(self.getLocaleCode()));
                 return;
             }
 

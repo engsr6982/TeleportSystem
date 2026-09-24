@@ -1,5 +1,10 @@
 #pragma once
+#include "ltps/Global.h"
 #include "ltps/database/IStorage.h"
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 class Vec3;
 class Player;
@@ -29,18 +34,28 @@ public:
     using Warps = std::vector<Warp>;
 
 private:
-    Warps mWarps;
+    // 索引: 传送点名列表 (保持添加顺序)
+    TPSNDAPI std::vector<std::string> getNames() const;
+
+    TPSAPI void setNames(ll::data::KeyValueDB::WriteBatch& batch, std::vector<std::string> const& names) const;
 
 public:
     TPS_DISALLOW_COPY_AND_MOVE(WarpStorage);
 
-    TPSAPI explicit WarpStorage();
+    TPSAPI explicit WarpStorage(ll::data::KeyValueDB& db);
 
-    TPSAPI void load() override;
-    TPSAPI void unload() override;
-    TPSAPI void writeBack() override;
+    TPSNDAPI std::string_view getBusinessGroup() const override;
 
-    TPSAPI bool hasWarp(std::string const& name) const;
+    TPSAPI void migrateFromV1(ll::data::KeyValueDB& v1, ll::data::KeyValueDB& v2) override;
+    TPSAPI void migrateUser(
+        ll::data::KeyValueDB::WriteBatch&            batch,
+        mce::UUID const&                 uuid,
+        RealName const&                  name,
+        std::vector<LegacyRecord> const& legacyRecords
+    ) override;
+    TPSAPI void rebuildIndexes(ll::data::KeyValueDB& db) override;
+
+    TPSNDAPI bool hasWarp(std::string const& name) const;
 
     TPSNDAPI Result<void> addWarp(Warp warp);
 
@@ -50,13 +65,12 @@ public:
 
     TPSNDAPI std::optional<Warp> getWarp(std::string const& name) const;
 
-    TPSNDAPI Warps const& getWarps() const;
+    TPSNDAPI Warps getWarps() const;
 
-    TPSNDAPI std::vector<Warp> getWarps(int count) const;
+    TPSNDAPI Warps getWarps(int count) const;
 
     TPSNDAPI Warps queryWarp(std::string const& keyword) const; // 模糊查询
-
-    static inline constexpr auto STORAGE_KEY = "warp";
 };
+
 
 } // namespace ltps::warp

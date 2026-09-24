@@ -14,21 +14,21 @@ void WarpGUI::sendMainMenu(Player& player, BackCB backCB) {
     auto localeCode = player.getLocaleCode();
     BackSimpleForm{std::move(backCB), BackSimpleForm::ButtonPos::Lower}
         .setTitle("Warp Menu"_trl(localeCode))
-        .setContent(" · 请选择一个操作")
+        .setContent(" · Please choose an action"_trl(localeCode))
         .appendButton(
-            "新建传送点"_trl(localeCode),
+            "Create warp"_trl(localeCode),
             "textures/ui/color_plus",
             "path",
             [](Player& self) { sendAddWarpGUI(self); }
         )
         .appendButton(
-            "前往传送点"_trl(localeCode),
+            "Go to warp"_trl(localeCode),
             "textures/ui/send_icon",
             "path",
             [](Player& self) { sendGoWarpGUI(self); }
         )
         .appendButton(
-            "删除传送点"_trl(localeCode),
+            "Remove warp"_trl(localeCode),
             "textures/ui/trash_default",
             "path",
             [](Player& self) { sendRemoveWarpGUI(self); }
@@ -54,13 +54,13 @@ void WarpGUI::_sendFuzzySearchGUI(Player& player, ChooseWarpCB callback) {
     auto localeCode = player.getLocaleCode();
 
     ll::form::CustomForm fm;
-    fm.setTitle("Warp - 模糊搜索"_trl(localeCode));
-    fm.appendInput("name", "请输入要搜索的传送点名称"_trl(localeCode), "string");
+    fm.setTitle("Warp - Fuzzy search"_trl(localeCode));
+    fm.appendInput("name", "Enter a warp name to search"_trl(localeCode), "string");
     fm.sendTo(player, [cb = std::move(callback)](Player& self, ll::form::CustomFormResult const& result, auto) {
         if (!result) return;
         auto name = std::get<std::string>(result->at("name"));
         if (name.empty()) {
-            mc_utils::sendText<mc_utils::Error>(self, "名称不能为空"_trl(self.getLocaleCode()));
+            mc_utils::sendText<mc_utils::Error>(self, "Name cannot be empty"_trl(self.getLocaleCode()));
             return;
         }
         _sendChooseWarpGUI(
@@ -74,10 +74,10 @@ void WarpGUI::_sendFuzzySearchGUI(Player& player, ChooseWarpCB callback) {
 void WarpGUI::_sendChooseWarpGUI(Player& player, WarpStorage::Warps const& warps, ChooseWarpCB callback) {
     auto localeCode = player.getLocaleCode();
     auto fm         = BackSimpleForm::make<WarpGUI::sendMainMenu>(nullptr);
-    fm.setTitle("Warp - 选择传送点"_trl(localeCode));
-    fm.setContent("请选择一个要前往的传送点"_trl(localeCode));
+    fm.setTitle("Warp - Choose a warp"_trl(localeCode));
+    fm.setContent("Choose a warp to teleport to"_trl(localeCode));
     fm.appendButton(
-        "模糊搜索"_trl(localeCode),
+        "Fuzzy search"_trl(localeCode),
         "textures/ui/magnifyingGlass",
         "path",
         [rawCB = callback](Player& self) { _sendFuzzySearchGUI(self, rawCB); }
@@ -97,14 +97,14 @@ void WarpGUI::sendGoWarpGUI(Player& player) {
 
 void WarpGUI::sendAddWarpGUI(Player& player) {
     auto localeCode = player.getLocaleCode();
-    ll::form::CustomForm{"Warp - 新建公共传送点"_trl(localeCode)}
-        .appendInput("name", "请输入传送点名称"_trl(localeCode), "string")
+    ll::form::CustomForm{"Warp - Create public warp"_trl(localeCode)}
+        .appendInput("name", "Enter warp name"_trl(localeCode), "string")
         .sendTo(player, [](Player& self, ll::form::CustomFormResult const& result, auto) {
             if (!result) return;
 
             auto name = std::get<std::string>(result->at("name"));
             if (name.empty()) {
-                mc_utils::sendText<mc_utils::Error>(self, "名称不能为空"_trl(self.getLocaleCode()));
+                mc_utils::sendText<mc_utils::Error>(self, "Name cannot be empty"_trl(self.getLocaleCode()));
                 return;
             }
             ll::event::EventBus::getInstance().publish(PlayerRequestAddWarpEvent{self, name});

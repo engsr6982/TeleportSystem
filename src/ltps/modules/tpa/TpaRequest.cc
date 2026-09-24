@@ -186,7 +186,7 @@ void TpaRequest::sendFormToReceiver() {
     auto sender   = getSender();
 
     auto& settingStorage     = *TeleportSystem::getInstance().getStorageManager().getStorage<setting::SettingStorage>();
-    auto  receiverSettings   = settingStorage.getSettingData(receiver->getRealName()).value();
+    auto  receiverSettings   = settingStorage.getSettingData(receiver->getUuid()); // 无记录返回默认值
     auto  receiverLocaleCode = receiver->getLocaleCode();
 
     if (!receiverSettings.tpaPopup) {
@@ -197,23 +197,23 @@ void TpaRequest::sendFormToReceiver() {
     form.setTitle("Tpa Request"_trl(receiverLocaleCode));
 
     std::string desc = mImpl->mType == Type::To
-                         ? "'{0}' 希望传送到您当前位置"_trl(receiverLocaleCode, sender->getRealName())
-                         : "'{0}' 希望将您传送到他(她)那里"_trl(receiverLocaleCode, sender->getRealName());
+                         ? "'{0}' wants to teleport to your position"_trl(receiverLocaleCode, sender->getRealName())
+                         : "'{0}' wants to teleport you to them"_trl(receiverLocaleCode, sender->getRealName());
     form.setContent(desc);
 
     std::weak_ptr<TpaRequest> self = shared_from_this();
-    form.appendButton("接受"_trl(receiverLocaleCode), "textures/ui/realms_green_check", "path", [self](Player&) {
+    form.appendButton("Accept"_trl(receiverLocaleCode), "textures/ui/realms_green_check", "path", [self](Player&) {
         if (auto req = self.lock()) {
             req->accept();
         }
     });
-    form.appendButton("拒绝"_trl(receiverLocaleCode), "textures/ui/realms_red_x", "path", [self](Player&) {
+    form.appendButton("Decline"_trl(receiverLocaleCode), "textures/ui/realms_red_x", "path", [self](Player&) {
         if (auto req = self.lock()) {
             req->deny();
         }
     });
     form.appendButton(
-        "忽略\n失效时间: {0}"_trl(receiverLocaleCode, getExpirationTime()),
+        "Ignore\nExpires at: {0}"_trl(receiverLocaleCode, getExpirationTime()),
         "textures/ui/backup_replace",
         "path"
     );
@@ -232,7 +232,7 @@ void TpaRequest::notifyAccepted() const {
 
     mc_utils::sendText(
         *sender,
-        "'{0}' 接受了您的 '{1}' 请求。"_trl(
+        "'{0}' accepted your '{1}' request."_trl(
             sender->getLocaleCode(),
             receiver->getRealName(),
             TpaRequest::getTypeString(type)
@@ -240,7 +240,7 @@ void TpaRequest::notifyAccepted() const {
     );
     mc_utils::sendText(
         *receiver,
-        "您接受了来自 '{0}' 的 '{1}' 请求。"_trl(
+        "You accepted the '{1}' request from '{0}'."_trl(
             receiver->getLocaleCode(),
             sender->getRealName(),
             TpaRequest::getTypeString(type)
@@ -259,7 +259,7 @@ void TpaRequest::notifyDenied() const {
 
     mc_utils::sendText<mc_utils::Error>(
         *sender,
-        "'{0}' 拒绝了您的 '{1}' 请求。"_trl(
+        "'{0}' declined your '{1}' request."_trl(
             sender->getLocaleCode(),
             receiver->getRealName(),
             TpaRequest::getTypeString(type)
@@ -267,7 +267,7 @@ void TpaRequest::notifyDenied() const {
     );
     mc_utils::sendText<mc_utils::Warn>(
         *receiver,
-        "您拒绝了来自 '{0}' 的 '{1}' 请求。"_trl(
+        "You declined the '{1}' request from '{0}'."_trl(
             receiver->getLocaleCode(),
             sender->getRealName(),
             TpaRequest::getTypeString(type)
@@ -298,21 +298,21 @@ void TpaRequest::_notifyState(Player* player) const {
 std::string TpaRequest::getStateDescription(State state, std::string const& localeCode) {
     switch (state) {
     case State::Available:
-        return "请求有效"_trl(localeCode);
+        return "Request is valid"_trl(localeCode);
     case State::Accepted:
-        return "请求已接受"_trl(localeCode);
+        return "Request accepted"_trl(localeCode);
     case State::Denied:
-        return "请求已拒绝"_trl(localeCode);
+        return "Request declined"_trl(localeCode);
     case State::Expired:
-        return "请求已过期"_trl(localeCode);
+        return "Request expired"_trl(localeCode);
     case State::SenderOffline:
-        return "发起者离线"_trl(localeCode);
+        return "Sender offline"_trl(localeCode);
     case State::ReceiverOffline:
-        return "接收者离线"_trl(localeCode);
+        return "Receiver offline"_trl(localeCode);
     case State::Cancelled:
-        return "请求已取消"_trl(localeCode);
+        return "Request cancelled"_trl(localeCode);
     default:
-        return "未知状态"_trl(localeCode);
+        return "Unknown state"_trl(localeCode);
     }
 }
 std::string TpaRequest::getTypeString(Type type) {

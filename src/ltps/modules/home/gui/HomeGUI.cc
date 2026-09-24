@@ -23,27 +23,27 @@ void HomeGUI::sendMainMenu(Player& player, BackCB backCB) {
     auto localeCode = player.getLocaleCode();
     BackSimpleForm{std::move(backCB), BackSimpleForm::ButtonPos::Lower}
         .setTitle("Home Menu"_trl(localeCode))
-        .setContent(" · 请选择一个操作"_trl(localeCode))
+        .setContent(" · Please choose an action"_trl(localeCode))
         .appendButton(
-            "新建家"_trl(localeCode),
+            "Create home"_trl(localeCode),
             "textures/ui/color_plus",
             "path",
             [](Player& self) { sendAddHomeGUI(self); }
         )
         .appendButton(
-            "前往家"_trl(localeCode),
+            "Go home"_trl(localeCode),
             "textures/ui/send_icon",
             "path",
             [](Player& self) { sendGoHomeGUI(self); }
         )
         .appendButton(
-            "编辑家"_trl(localeCode),
+            "Edit home"_trl(localeCode),
             "textures/ui/book_edit_default",
             "path",
             [](Player& self) { sendEditHomeGUI(self); }
         )
         .appendButton(
-            "删除家"_trl(localeCode),
+            "Remove home"_trl(localeCode),
             "textures/ui/trash_default",
             "path",
             [](Player& self) { sendRemoveHomeGUI(self); }
@@ -55,17 +55,17 @@ void HomeGUI::sendAddHomeGUI(Player& player) {
     auto localeCode = player.getLocaleCode();
 
     CustomForm fm{"Home - Add"_trl(localeCode)};
-    fm.appendLabel("输入要创建的家园名称，例如: My Home\n注意：家园名称不能超过 {} 个字符。"_trl(
+    fm.appendLabel("Enter the home name, e.g. My Home\nNote: the name must not exceed {} characters."_trl(
         localeCode,
         getConfig().modules.home.nameLength
     ));
 
     fm.appendInput(
         "name",
-        "请输入家园名称",
+        "Enter home name"_trl(localeCode),
         "string",
         "",
-        "不能超过 {} 个字符哦!"_trl(localeCode, getConfig().modules.home.nameLength)
+        "Must not exceed {} characters!"_trl(localeCode, getConfig().modules.home.nameLength)
     );
 
     fm.sendTo(player, [localeCode{std::move(localeCode)}](Player& self, CustomFormResult const& result, auto) {
@@ -73,7 +73,7 @@ void HomeGUI::sendAddHomeGUI(Player& player) {
 
         auto name = std::get<std::string>(result->at("name"));
         if (name.empty()) {
-            mc_utils::sendText<mc_utils::Error>(self, "家园名称不能为空哦!"_trl(localeCode));
+            mc_utils::sendText<mc_utils::Error>(self, "Home name cannot be empty!"_trl(localeCode));
             return;
         }
 
@@ -86,11 +86,11 @@ void HomeGUI::sendChooseHomeGUI(Player& player, ChooseHomeCallback chooseCB) {
     auto localeCode = player.getLocaleCode();
 
     auto fm = BackSimpleForm::make<HomeGUI::sendMainMenu>(BackCB{});
-    fm.setTitle("Choose Home"_trl(localeCode)).setContent("请选择一个家"_trl(localeCode));
+    fm.setTitle("Choose Home"_trl(localeCode)).setContent("Choose a home"_trl(localeCode));
 
     auto storage = TeleportSystem::getInstance().getStorageManager().getStorage<HomeStorage>();
 
-    auto homes = storage->getHomes(player.getRealName());
+    auto homes = storage->getHomes(player.getUuid());
     for (auto& home : homes) {
         auto _name = home.name; // 拷贝名称，避免 move 后显示空字符串
         fm.appendButton(_name, [chooseCB, home = std::move(home)](Player& self) { chooseCB(self, home); });
@@ -125,7 +125,7 @@ void HomeGUI::_sendEditHomeGUI(Player& player, HomeStorage::Home home) {
 
     auto fm = BackSimpleForm::make<HomeGUI::sendEditHomeGUI>();
     fm.setTitle("Home - Edit"_trl(localeCode))
-        .setContent("名称: {}\n坐标: {}.{}.{}\n维度: {}\n创建时间: {}\n更改时间: {}"_trl(
+        .setContent("Name: {}\nPos: {}.{}.{}\nDim: {}\nCreated: {}\nModified: {}"_trl(
             localeCode,
             home.name,
             home.x,
@@ -136,13 +136,13 @@ void HomeGUI::_sendEditHomeGUI(Player& player, HomeStorage::Home home) {
             home.modifiedTime
         ))
         .appendButton(
-            "修改名称"_trl(localeCode),
+            "Rename"_trl(localeCode),
             "textures/ui/book_edit_default",
             "path",
             [name = home.name](Player& self) { _sendEditHomeNameGUI(self, name); }
         )
         .appendButton(
-            "更新坐标"_trl(localeCode),
+            "Update position"_trl(localeCode),
             "textures/ui/icon_import",
             "path",
             [name = home.name](Player& self) {
@@ -161,14 +161,14 @@ void HomeGUI::_sendEditHomeGUI(Player& player, HomeStorage::Home home) {
 void HomeGUI::_sendEditHomeNameGUI(Player& player, std::string const& name) {
     auto localeCode = player.getLocaleCode();
     CustomForm{"Edit Home Name"}
-        .appendLabel("修改家园名称，新名称不得超过 {} 个字符"_trl(localeCode, getConfig().modules.home.nameLength))
-        .appendInput("newName", "编辑名称"_trl(localeCode), "string", name)
+        .appendLabel("Enter a new home name, at most {} characters"_trl(localeCode, getConfig().modules.home.nameLength))
+        .appendInput("newName", "New name"_trl(localeCode), "string", name)
         .sendTo(player, [name](Player& self, CustomFormResult const& res, auto) {
             if (!res) return;
 
             auto newName = std::get<std::string>(res->at("newName"));
             if (newName.empty()) {
-                mc_utils::sendText<mc_utils::Error>(self, "名称不能为空哦!"_trl(self.getLocaleCode()));
+                mc_utils::sendText<mc_utils::Error>(self, "Name cannot be empty!"_trl(self.getLocaleCode()));
                 return;
             }
 

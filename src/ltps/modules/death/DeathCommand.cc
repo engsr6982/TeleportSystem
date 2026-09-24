@@ -23,7 +23,7 @@ void DeathCommand::setup() {
     // death
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
         auto& player = *static_cast<Player*>(origin.getEntity());
@@ -33,39 +33,38 @@ void DeathCommand::setup() {
     // death list
     cmd.overload().text("list").execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
         auto& player     = *static_cast<Player*>(origin.getEntity());
-        auto  realName   = player.getRealName();
         auto  localeCode = player.getLocaleCode();
 
         auto deaths =
-            TeleportSystem::getInstance().getStorageManager().getStorage<DeathStorage>()->getDeathInfos(realName);
-        if (!deaths || deaths->empty()) {
-            mc_utils::sendText<mc_utils::Error>(output, "您还没有任何死亡信息"_trl(localeCode));
+            TeleportSystem::getInstance().getStorageManager().getStorage<DeathStorage>()->getDeathInfos(player.getUuid());
+        if (deaths.empty()) {
+            mc_utils::sendText<mc_utils::Error>(output, "You have no death records"_trl(localeCode));
             return;
         }
 
-        mc_utils::sendText(output, "您最近的死亡信息："_trl(localeCode));
-        mc_utils::sendText(output, " * {}"_tr((*deaths)[0].toString()));
+        mc_utils::sendText(output, "Your recent death records:"_trl(localeCode));
+        mc_utils::sendText(output, " * {}"_tr(deaths.front().toString()));
 
         bool skipFirst = false;
-        for (auto const& death : *deaths) {
+        for (auto const& death : deaths) {
             if (!skipFirst) {
                 skipFirst = true;
                 continue;
             }
             mc_utils::sendText(output, "   {}"_tr(death.toString()));
         }
-        mc_utils::sendText(output, "共计 {} 条死亡记录"_trl(localeCode, deaths->size()));
+        mc_utils::sendText(output, "{} death record(s) in total"_trl(localeCode, deaths.size()));
     });
 
     // death back [index]
     cmd.overload<BackParam>().text("back").optional("index").execute(
         [](CommandOrigin const& origin, CommandOutput& output, BackParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
             auto& player = *static_cast<Player*>(origin.getEntity());
@@ -80,7 +79,7 @@ void DeathCommand::setup() {
             .overload()
             .execute([](CommandOrigin const& origin, CommandOutput& output) {
                 if (origin.getOriginType() != CommandOriginType::Player) {
-                    mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                    mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                     return;
                 }
                 auto& player = *static_cast<Player*>(origin.getEntity());

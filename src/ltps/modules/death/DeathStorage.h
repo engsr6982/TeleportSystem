@@ -1,11 +1,16 @@
 #pragma once
+#include "ltps/Global.h"
 #include "ltps/database/IStorage.h"
+#include "mc/platform/UUID.h"
+#include <optional>
+#include <string_view>
+#include <vector>
 
 
 class Vec3;
 class Player;
 
-namespace ltps ::death {
+namespace ltps::death {
 
 class DeathStorage final : public IStorage {
 public:
@@ -21,33 +26,41 @@ public:
         TPSNDAPI std::string toString() const;
         TPSNDAPI std::string toPosString() const;
     };
-    using DeathInfos   = std::vector<DeathInfo>;
-    using DeathInfoMap = std::unordered_map<RealName, DeathInfos>;
+    using DeathInfos = std::vector<DeathInfo>;
 
 private:
-    DeathInfoMap mDeathInfoMap;
+    // 索引: 死亡记录 id 列表 (新的在前, 且字典序 = 时间序)
+    TPSNDAPI std::vector<std::string> getIds(mce::UUID const& uuid) const;
+
+    TPSNDAPI std::optional<DeathInfo> getById(mce::UUID const& uuid, std::string_view id) const;
 
 public:
     TPS_DISALLOW_COPY(DeathStorage);
 
-    TPSAPI explicit DeathStorage();
+    TPSAPI explicit DeathStorage(ll::data::KeyValueDB& db);
 
-    TPSAPI void load() override;
-    TPSAPI void unload() override;
-    TPSAPI void writeBack() override;
+    TPSNDAPI std::string_view getBusinessGroup() const override;
 
-    TPSNDAPI bool hasDeathInfo(RealName const& realName) const;
+    TPSAPI void migrateFromV1(ll::data::KeyValueDB& v1, ll::data::KeyValueDB& v2) override;
+    TPSAPI void migrateUser(
+        ll::data::KeyValueDB::WriteBatch&            batch,
+        mce::UUID const&                 uuid,
+        RealName const&                  name,
+        std::vector<LegacyRecord> const& legacyRecords
+    ) override;
+    TPSAPI void rebuildIndexes(ll::data::KeyValueDB& db) override;
 
-    TPSAPI void addDeathInfo(RealName const& realName, DeathInfo deathInfo);
+    TPSNDAPI bool hasDeathInfo(mce::UUID const& uuid) const;
 
-    TPSNDAPI DeathInfos const* getDeathInfos(RealName const& realName) const;
+    TPSAPI void addDeathInfo(mce::UUID const& uuid, DeathInfo deathInfo);
 
-    TPSNDAPI std::optional<DeathInfo> getLatestDeathInfo(RealName const& realName) const;
-    TPSNDAPI std::optional<DeathInfo> getSpecificDeathInfo(RealName const& realName, int index) const;
+    TPSNDAPI DeathInfos getDeathInfos(mce::UUID const& uuid) const;
 
-    TPSAPI bool clearDeathInfo(RealName const& realName);
+    TPSNDAPI std::optional<DeathInfo> getLatestDeathInfo(mce::UUID const& uuid) const;
+    TPSNDAPI std::optional<DeathInfo> getSpecificDeathInfo(mce::UUID const& uuid, int index) const;
 
-    static inline constexpr auto STORAGE_KEY = "death";
+    TPSAPI bool clearDeathInfo(mce::UUID const& uuid);
 };
+
 
 } // namespace ltps::death

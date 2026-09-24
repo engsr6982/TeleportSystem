@@ -61,24 +61,24 @@ bool TpaModule::enable() {
                     sender.getDimensionId()
                 )
                 != getConfig().modules.tpa.disallowedDimensions.end()) {
-                mc_utils::sendText<mc_utils::Error>(sender, "此功能在当前维度不可用"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(sender, "This feature is unavailable in this dimension"_trl(localeCode));
                 ev.cancel();
                 return;
             }
 
             // TPA 请求冷却
-            if (this->mCooldown.isCooldown(sender.getRealName())) {
+            if (this->mCooldown.isCooldown(sender.getUuid().asString())) {
                 mc_utils::sendText<mc_utils::Error>(
                     sender,
-                    "TPA 请求冷却中，剩余时间 {0}"_trl(
+                    "TPA request on cooldown, remaining {0}"_trl(
                         localeCode,
-                        this->mCooldown.getCooldownString(sender.getRealName())
+                        this->mCooldown.getCooldownString(sender.getUuid().asString())
                     )
                 );
                 ev.cancel();
                 return;
             }
-            this->mCooldown.setCooldown(sender.getRealName(), getConfig().modules.tpa.cooldownTime);
+            this->mCooldown.setCooldown(sender.getUuid().asString(), getConfig().modules.tpa.cooldownTime);
 
             // 费用检查
             PriceCalculate cl(getConfig().modules.tpa.createRequestCalculate);
@@ -86,9 +86,9 @@ bool TpaModule::enable() {
             if (!clValue.has_value()) {
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "An exception occurred while calculating the TPA price, please check the configuration file.\n{}",
-                    clValue.error()
+                    clValue.error().message()
                 );
-                mc_utils::sendText<mc_utils::Error>(sender, "TPA 模块异常，请联系管理员"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(sender, "TPA module error, please contact an administrator"_trl(localeCode));
                 ev.cancel();
                 return;
             }
@@ -113,11 +113,11 @@ bool TpaModule::enable() {
 
             mc_utils::sendText(
                 *sender,
-                "已向 '{0}' 发起 '{1}' 请求"_trl(sender->getLocaleCode(), receiver->getRealName(), type)
+                "Sent '{1}' request to '{0}'"_trl(sender->getLocaleCode(), receiver->getRealName(), type)
             );
             mc_utils::sendText(
                 *receiver,
-                "收到来自 '{0}' 的 '{1}' 请求"_trl(receiver->getLocaleCode(), sender->getRealName(), type)
+                "Received '{1}' request from '{0}'"_trl(receiver->getLocaleCode(), sender->getRealName(), type)
             );
         },
         ll::event::EventPriority::High
@@ -131,7 +131,7 @@ bool TpaModule::enable() {
     mListeners.emplace_back(bus.emplaceListener<TpaRequestExpiredEvent>([](TpaRequestExpiredEvent& ev) {
         auto& req = ev.getRequest();
         if (req->isSenderAndReceiverOnline()) {
-            req->notifyExpired(); // 通知双方请求已过期
+            req->notifyExpired(); // 通知双方Request expired
         }
     }));
 
@@ -163,7 +163,7 @@ void TpaModule::handlePlayerExecuteTpaCommand(PlayerExecuteTpaCommandEvent& ev) 
     auto const localeCode = self.getLocaleCode();
 
     if (self.isSleeping()) {
-        mc_utils::sendText<mc_utils::Error>(self, "你不能在睡觉时使用此命令"_trl(localeCode));
+        mc_utils::sendText<mc_utils::Error>(self, "You cannot use this command while sleeping"_trl(localeCode));
         return;
     }
 
@@ -187,14 +187,14 @@ void TpaModule::handleAcceptOrDenyTpaRequest(Player& receiver, bool accept) {
 
     switch (senders.size()) {
     case 0:
-        mc_utils::sendText<mc_utils::Error>(receiver, "您没有收到任何 TPA 请求"_trl(localeCode));
+        mc_utils::sendText<mc_utils::Error>(receiver, "You have no pending TPA request"_trl(localeCode));
         return;
     case 1: {
         auto request = pool.getRequest(senders[0], receiver.getUuid());
         if (request) {
             accept ? request->accept() : request->deny();
         } else {
-            mc_utils::sendText<mc_utils::Error>(receiver, "TPA 请求不存在"_trl(localeCode));
+            mc_utils::sendText<mc_utils::Error>(receiver, "TPA request does not exist"_trl(localeCode));
             TeleportSystem::getInstance().getSelf().getLogger().error("An unexpected request is null pointer.");
         }
         return;
@@ -203,13 +203,13 @@ void TpaModule::handleAcceptOrDenyTpaRequest(Player& receiver, bool accept) {
         auto& infoDb = ll::service::PlayerInfo::getInstance();
 
         ll::form::SimpleForm fm;
-        fm.setTitle("Tpa 请求列表 [{}]"_trl(localeCode, senders.size()));
-        fm.setContent("选择一个要 接受/拒绝 的 TPA 请求"_trl(localeCode));
+        fm.setTitle("TPA request list [{}]"_trl(localeCode, senders.size()));
+        fm.setContent("Choose a TPA request to accept/decline"_trl(localeCode));
 
         for (auto const& sender : senders) {
             auto info = infoDb.fromUuid(sender);
             fm.appendButton(
-                "发起者: {0}"_trl(localeCode, info.has_value() ? info->name : sender.asString()),
+                "Sender: {0}"_trl(localeCode, info.has_value() ? info->name : sender.asString()),
                 [&pool, sender, accept](Player& receiver) {
                     if (auto request = pool.getRequest(sender, receiver.getUuid())) {
                         accept ? request->accept() : request->deny();
@@ -232,7 +232,7 @@ void TpaModule::handleCancelTpaRequest(Player& sender) {
     auto requests = pool.getInitiatedRequest(sender);
     switch (requests.size()) {
     case 0:
-        mc_utils::sendText<mc_utils::Error>(sender, "您没有发起任何 TPA 请求"_trl(localeCode));
+        mc_utils::sendText<mc_utils::Error>(sender, "You have no outgoing TPA request"_trl(localeCode));
         break;
     case 1:
         requests[0]->cancel();
@@ -241,13 +241,13 @@ void TpaModule::handleCancelTpaRequest(Player& sender) {
         auto& infoDb = ll::service::PlayerInfo::getInstance();
 
         ll::form::SimpleForm fm;
-        fm.setTitle("Tpa 请求列表 [{}]"_trl(localeCode, requests.size()));
-        fm.setContent("请选择需要取消的 Tpa 请求"_trl(localeCode));
+        fm.setTitle("TPA request list [{}]"_trl(localeCode, requests.size()));
+        fm.setContent("Choose the TPA request to cancel"_trl(localeCode));
 
         for (auto& request : requests) {
             auto info = infoDb.fromUuid(request->getReceiverUUID());
             fm.appendButton(
-                "接收者: {0}"_trl(localeCode, info.has_value() ? info->name : request->getReceiverUUID().asString()),
+                "Receiver: {0}"_trl(localeCode, info.has_value() ? info->name : request->getReceiverUUID().asString()),
                 [request](Player&) { request->cancel(); }
             );
         }

@@ -27,15 +27,15 @@
     }
 
 
+#include "ll/api/Expected.h"
 #include "ll/api/i18n/I18n.h"
-#include <expected>
 namespace ltps {
 
 using ll::operator""_tr;
 using ll::operator""_trl;
 
-template <typename T, typename E = std::string>
-using Result = std::expected<T, E>;
+template <typename T>
+using Result = ll::Expected<T>;
 
 using RealName = std::string;
 

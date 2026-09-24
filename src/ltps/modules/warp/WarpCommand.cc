@@ -31,7 +31,7 @@ void WarpCommand::setup() {
     // warp
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
         auto& player = *static_cast<Player*>(origin.getEntity());
@@ -42,7 +42,7 @@ void WarpCommand::setup() {
     cmd.overload<WarpListParam>().text("list").optional("name").execute(
         [](CommandOrigin const& origin, CommandOutput& output, WarpListParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
 
@@ -52,7 +52,7 @@ void WarpCommand::setup() {
 
             if (param.name.empty()) {
                 auto        warps = storage->getWarps(16);
-                std::string text  = "当前服务器共有 {} 个公共传送点:"_trl(localeCode, warps.size());
+                std::string text  = "There are {} public warps on this server:"_trl(localeCode, warps.size());
                 for (const auto& warp : warps) {
                     text += fmt::format(" ,{}", warp.name);
                 }
@@ -62,13 +62,13 @@ void WarpCommand::setup() {
 
             auto warp = storage->getWarp(param.name);
             if (!warp) {
-                mc_utils::sendText<mc_utils::Error>(output, "未找到该公共传送点"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(output, "Public warp not found"_trl(localeCode));
                 return;
             }
 
             mc_utils::sendText(
                 output,
-                "名称: {} 坐标：{},{},{} 维度: {} 创建时间: {} 修改时间: {}"_trl(
+                "Name: {} Pos: {},{},{} Dim: {} Created: {} Modified: {}"_trl(
                     localeCode,
                     warp->name,
                     warp->x,
@@ -86,7 +86,7 @@ void WarpCommand::setup() {
     cmd.overload<WarpActionParam>().required("action").required("name").execute(
         [](CommandOrigin const& origin, CommandOutput& output, WarpActionParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
             auto& player = *static_cast<Player*>(origin.getEntity());
@@ -111,7 +111,7 @@ void WarpCommand::setup() {
     // warp mgr
     cmd.overload().text("mgr").execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
 
@@ -119,8 +119,11 @@ void WarpCommand::setup() {
 
         auto st = TeleportSystem::getInstance().getStorageManager().getStorage<PermissionStorage>();
 
-        if (!st->hasPermission(player.getRealName(), PermissionStorage::Permission::ManagerPanel)) {
-            mc_utils::sendText<mc_utils::Error>(output, "你没有权限使用此命令"_trl(player.getLocaleCode()));
+        if (!st->hasPermission(player.getUuid(), PermissionStorage::Permission::ManagerPanel)) {
+            mc_utils::sendText<mc_utils::Error>(
+                output,
+                "You do not have permission to use this command"_trl(player.getLocaleCode())
+            );
             return;
         }
 

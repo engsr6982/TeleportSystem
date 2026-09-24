@@ -43,8 +43,8 @@ public:
 
 class IAddHomeEvent {
 protected:
-    Player&                        mPlayer;
-    home::HomeStorage::Home const& mHome;
+    Player&                  mPlayer;
+    home::HomeStorage::Home mHome; // 按值持有: 发布点常为临时量
 
 public:
     TPSAPI explicit IAddHomeEvent(Player& player, home::HomeStorage::Home const& home);
@@ -118,8 +118,8 @@ public:
 
 class ITeleportHomeEvent {
 protected:
-    Player&                        mPlayer;
-    home::HomeStorage::Home const& mHome;
+    Player&                  mPlayer;
+    home::HomeStorage::Home mHome; // 按值持有: 发布点常为临时量
 
 public:
     TPSAPI explicit ITeleportHomeEvent(Player& player, home::HomeStorage::Home const& home);
@@ -170,7 +170,7 @@ protected:
     Player&                    mPlayer;
     Type                       mType;
     std::string                mName;
-    HomeStorage::Home const&   mHome;
+    HomeStorage::Home          mHome; // 按值持有: 发布点常为临时量
     std::optional<Vec3>        mNewPosition;
     std::optional<std::string> mNewName;
 
@@ -241,7 +241,7 @@ public:
 
 class IAdminOperateHomeEvent : public IAdminEvent {
 protected:
-    HomeStorage::Home const& mHome; // 正在操作的家
+    HomeStorage::Home mHome; // 正在操作的家 (按值持有: 发布点常为临时量)
 
 public:
     TPSAPI explicit IAdminOperateHomeEvent(Player& admin, RealName const& target, HomeStorage::Home const& home);
@@ -334,7 +334,7 @@ public:
 
 
 class IAdminEditHomeEvent : public IAdminOperateHomeEvent {
-    HomeStorage::Home const& mNewHome;
+    HomeStorage::Home mNewHome; // 按值持有: 发布点常为临时量
 
 public:
     TPSAPI explicit IAdminEditHomeEvent(

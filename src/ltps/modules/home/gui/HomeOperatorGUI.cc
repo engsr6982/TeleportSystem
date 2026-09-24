@@ -34,11 +34,11 @@ void HomeOperatorGUI::sendChoosePlayerGUI(Player& player, ChoosePlayerCallback c
     auto localeCode = player.getLocaleCode();
 
     SimpleForm fm{"Teleport System - Home Manager"_trl(localeCode)};
-    fm.setContent("请选择一个玩家: "_trl(localeCode));
+    fm.setContent("Choose a player: "_trl(localeCode));
 
-    auto const& map = storage->getAllHomes();
-    for (auto const& pair : map) {
-        fm.appendButton(pair.first, [callback, target = pair.first](Player& self) { callback(self, target); });
+    auto names = storage->getAllOwnerNames();
+    for (auto const& name : names) {
+        fm.appendButton(name, [callback, target = name](Player& self) { callback(self, target); });
     }
 
     fm.sendTo(player);
@@ -52,13 +52,22 @@ void HomeOperatorGUI::sendChooseHomeGUI(Player& player, RealName targetPlayer, C
 
     auto localeCode = player.getLocaleCode();
 
-    auto& homes = storage->getHomes(targetPlayer);
+    auto uuid = TeleportSystem::getInstance().getStorageManager().resolveUuid(targetPlayer);
+    if (!uuid) {
+        mc_utils::sendText<mc_utils::Error>(
+            player,
+            "Failed to resolve player {}: they must join the server once first"_trl(localeCode, targetPlayer)
+        );
+        return;
+    }
+
+    auto homes = storage->getHomes(uuid.value());
 
     auto fm = BackSimpleForm::make<sendMainGUI>();
     fm.setTitle("Teleport System - Home Manager"_trl(localeCode));
-    fm.setContent("{} 共有 {} 个传送点, 请选择一个: "_trl(localeCode, targetPlayer, homes.size()));
+    fm.setContent("{} has {} home(s), please choose one: "_trl(localeCode, targetPlayer, homes.size()));
 
-    fm.appendButton("创建"_trl(localeCode), "textures/ui/color_plus", "path", [targetPlayer](Player& self) {
+    fm.appendButton("Create"_trl(localeCode), "textures/ui/color_plus", "path", [targetPlayer](Player& self) {
         sendCreateOrEditHomeGUI(self, targetPlayer);
     });
 
@@ -77,7 +86,7 @@ void HomeOperatorGUI::sendOperatorMenu(Player& player, RealName targetPlayer, Ho
 
     BackSimpleForm::make<sendChooseHomeGUI>(targetPlayer, sendOperatorMenu)
         .setTitle("Teleport System - Home Manager"_trl(localeCode))
-        .setContent("所属玩家: {}\n家园名称: {}\n家园坐标: {}\n创建时间: {}\n修改时间: {}"_trl(
+        .setContent("Owner: {}\nHome: {}\nPos: {}\nCreated: {}\nModified: {}"_trl(
             localeCode,
             targetPlayer,
             home.name,
@@ -86,7 +95,7 @@ void HomeOperatorGUI::sendOperatorMenu(Player& player, RealName targetPlayer, Ho
             home.modifiedTime
         ))
         .appendButton(
-            "前往"_trl(localeCode),
+            "Go"_trl(localeCode),
             "textures/ui/send_icon",
             "path",
             [targetPlayer, home](Player& self) {
@@ -94,13 +103,13 @@ void HomeOperatorGUI::sendOperatorMenu(Player& player, RealName targetPlayer, Ho
             }
         )
         .appendButton(
-            "编辑"_trl(localeCode),
+            "Edit"_trl(localeCode),
             "textures/ui/book_edit_default",
             "path",
             [targetPlayer, home](Player& self) { sendCreateOrEditHomeGUI(self, targetPlayer, home); }
         )
         .appendButton(
-            "删除"_trl(localeCode),
+            "Delete"_trl(localeCode),
             "textures/ui/trash_default",
             "path",
             [targetPlayer, home](Player& self) {
@@ -118,13 +127,13 @@ void HomeOperatorGUI::sendCreateOrEditHomeGUI(
     auto localeCode = player.getLocaleCode();
 
     CustomForm fm{"Home Manager - Create Home"_trl(localeCode)};
-    fm.appendInput("name", "请输入家园名称: "_trl(localeCode), "string", home ? home->name : "");
+    fm.appendInput("name", "Enter home name: "_trl(localeCode), "string", home ? home->name : "");
     fm.appendInput(
         "pos",
-        "请输入家园坐标: "_trl(localeCode),
+        "Enter home position: "_trl(localeCode),
         "string",
         (home ? "{},{},{}"_tr(home->x, home->y, home->z) : ""),
-        "使用半角逗号分隔坐标, 例如: x,y,z"_tr(localeCode)
+        "Separate coordinates with half-width commas, e.g. x,y,z"_trl(localeCode)
     );
 
     auto&                           dimMap = VanillaDimensions::DimensionMap();
@@ -149,7 +158,7 @@ void HomeOperatorGUI::sendCreateOrEditHomeGUI(
         }
     }
 
-    fm.appendDropdown("dimName", "请选择一个维度: "_trl(localeCode), dimNames, index);
+    fm.appendDropdown("dimName", "Choose a dimension: "_trl(localeCode), dimNames, index);
 
     fm.sendTo(
         player,
@@ -168,7 +177,7 @@ void HomeOperatorGUI::sendCreateOrEditHomeGUI(
                 auto& dimMap  = VanillaDimensions::DimensionMap();
                 auto  dimIter = dimMap.mRight.find(dimName);
                 if (dimIter == dimMap.mRight.end()) {
-                    mc_utils::sendText<mc_utils::Error>(self, "无效的维度名称"_trl(localeCode));
+                    mc_utils::sendText<mc_utils::Error>(self, "Invalid dimension name"_trl(localeCode));
                     return;
                 }
                 dimid = dimIter->second;
@@ -185,7 +194,7 @@ void HomeOperatorGUI::sendCreateOrEditHomeGUI(
                     parts.push_back(part);
                 }
                 if (parts.size() != 3) {
-                    mc_utils::sendText<mc_utils::Error>(self, "坐标格式错误"_trl(localeCode));
+                    mc_utils::sendText<mc_utils::Error>(self, "Invalid position format"_trl(localeCode));
                     return;
                 } else {
                     try {
@@ -193,7 +202,7 @@ void HomeOperatorGUI::sendCreateOrEditHomeGUI(
                         v3.y = std::stof(parts[1]);
                         v3.z = std::stof(parts[2]);
                     } catch (...) {
-                        mc_utils::sendText<mc_utils::Error>(self, "捕获到异常，请检查坐标"_trl(localeCode));
+                        mc_utils::sendText<mc_utils::Error>(self, "Exception caught, please check the position"_trl(localeCode));
                         return;
                     }
                 }

@@ -63,9 +63,9 @@ Result<double> PriceCalculate::eval() const {
 
     parseInternalFuncOptions(symbolTable, mOptions);
 
-    for (auto& [name, value] : mVariables) {
-        auto _val = value;
-        symbolTable.add_variable(name, _val);
+    auto variables = mVariables;
+    for (auto& [name, value] : variables) {
+        symbolTable.add_variable(name, value);
     }
 
     exprtk::expression<double> expression;
@@ -73,7 +73,7 @@ Result<double> PriceCalculate::eval() const {
 
     exprtk::parser<double> parser;
     if (!parser.compile(mExpression, expression)) {
-        return std::unexpected(parser.error());
+        return ll::makeStringError(parser.error());
     }
     return expression.value();
 }

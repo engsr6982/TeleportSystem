@@ -34,12 +34,11 @@ bool DeathModule::enable() {
         [this](PlayerRequestBackDeathPointEvent& ev) {
             auto&      player     = ev.getPlayer();
             auto const index      = ev.getIndex();
-            auto       realName   = player.getRealName();
             auto       localeCode = player.getLocaleCode();
 
-            auto info = getStorage()->getSpecificDeathInfo(realName, index);
+            auto info = getStorage()->getSpecificDeathInfo(player.getUuid(), index);
             if (!info.has_value()) {
-                mc_utils::sendText<mc_utils::Error>(player, "没有找到对应的死亡信息"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "No matching death record found"_trl(localeCode));
                 ev.cancel();
                 return;
             }
@@ -54,7 +53,7 @@ bool DeathModule::enable() {
             }
 
             info->teleport(player);
-            mc_utils::sendText(player, "传送成功"_trl(localeCode));
+            mc_utils::sendText(player, "Teleported"_trl(localeCode));
 
             auto backed = BackedDeathPointEvent{player, *info, index};
             bus.publish(backed);
@@ -76,12 +75,12 @@ bool DeathModule::enable() {
             auto price = cl.eval();
 
             if (!price) {
-                mc_utils::sendText<mc_utils::Error>(player, "计算价格失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to calculate price"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[DeathModule]: Calculate price failed! player: {}, deathInfo: {}, error: {}",
                     realName,
                     info.toString(),
-                    price.error()
+                    price.error().message()
                 );
                 ev.cancel();
                 return;
@@ -112,9 +111,12 @@ bool DeathModule::enable() {
         }
 
         auto info = DeathStorage::DeathInfo::make(pos, dimid);
-        getStorage()->addDeathInfo(player.getRealName(), std::move(info));
+        getStorage()->addDeathInfo(player.getUuid(), std::move(info));
 
-        mc_utils::sendText(player, "本次死亡信息已记录，使用 /death back 可以返回死亡点"_trl(player.getLocaleCode()));
+        mc_utils::sendText(
+            player,
+            "Death location recorded, use /death back to return"_trl(player.getLocaleCode())
+        );
     }));
 
     mListeners.emplace_back(bus.emplaceListener<ll::event::PlayerRespawnEvent>([this](ll::event::PlayerRespawnEvent& ev
@@ -125,7 +127,7 @@ bool DeathModule::enable() {
         }
 
         if (auto ps = getStorageManager().getStorage<setting::SettingStorage>();
-            ps && ps->getSettingData(player.getRealName())->deathPopup) {
+            ps && ps->getSettingData(player.getUuid()).deathPopup) {
             DeathGUI::sendBackGUI(player);
         }
     }));

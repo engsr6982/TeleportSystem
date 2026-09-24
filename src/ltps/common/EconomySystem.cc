@@ -84,22 +84,22 @@ std::string EconomySystem::getCostMessage(Player& player, long long amount, std:
         llong currentMoney = get(player);
         bool  isEnough     = currentMoney >= amount;
 
-        return "\n[Tip] 本次操作需要: {0} {1} | 当前余额: {2} | 剩余余额: {3} | {4}"_trl(
+        return "\n[Tip] Cost: {0} {1} | Balance: {2} | Remaining: {3} | {4}"_trl(
             localeCode,
             amount,
             config.economyName,
             currentMoney,
             currentMoney - amount,
-            isEnough ? "余额充足"_trl(localeCode) : "余额不足"_trl(localeCode)
+            isEnough ? "sufficient balance"_trl(localeCode) : "insufficient balance"_trl(localeCode)
         );
     }
-    return "\n[Tip] 经济系统未启用，本次操作不消耗 {}"_trl(localeCode, config.economyName);
+    return "\n[Tip] Economy system is disabled, no cost for this operation {}"_trl(localeCode, config.economyName);
 }
 
 void EconomySystem::sendNotEnoughMoneyMessage(Player& player, long long amount, std::string const& localeCode) const {
     auto& config = EconomySystemManager::getInstance().getConfig();
 
-    player.sendMessage("§c[EconomySystem] 操作失败，需要 {0} {1}，当前余额 {2}"_trl(
+    player.sendMessage("§c[EconomySystem] Operation failed, need {0} {1}, current balance {2}"_trl(
         localeCode,
         amount,
         config.economyName,

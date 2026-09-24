@@ -32,7 +32,7 @@ void TpaCommand::setup() {
     // tpa
     cmd.overload().execute([](CommandOrigin const& origin, CommandOutput& output) {
         if (origin.getOriginType() != CommandOriginType::Player) {
-            mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+            mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
             return;
         }
 
@@ -44,7 +44,7 @@ void TpaCommand::setup() {
     cmd.overload<IAcceptDenyParam>().required("type").execute(
         [](CommandOrigin const& origin, CommandOutput& output, IAcceptDenyParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
             auto& receiver = *static_cast<Player*>(origin.getEntity());
@@ -56,7 +56,7 @@ void TpaCommand::setup() {
     cmd.overload<ICreateTpaRequestParam>().required("type").required("target").execute(
         [](CommandOrigin const& origin, CommandOutput& output, ICreateTpaRequestParam const& param) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
 
@@ -65,12 +65,12 @@ void TpaCommand::setup() {
 
             auto targets = param.target.results(origin);
             if (targets.empty()) {
-                mc_utils::sendText<mc_utils::Error>(output, "找不到目标玩家"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(output, "Target player not found"_trl(localeCode));
                 return;
             }
 
             if (targets.size() > 1) {
-                mc_utils::sendText<mc_utils::Error>(output, "目标玩家过多"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(output, "Too many target players"_trl(localeCode));
                 return;
             }
 

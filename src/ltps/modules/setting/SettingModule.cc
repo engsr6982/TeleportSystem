@@ -22,7 +22,7 @@ bool SettingModule::enable() {
         if (ev.self().isSimulatedPlayer()) {
             return;
         }
-        getStorage()->initPlayerSetting(ev.self().getRealName());
+        getStorage()->initPlayerSetting(ev.self().getUuid());
     }));
 
     return true;

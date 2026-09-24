@@ -25,6 +25,17 @@ inline std::string getCurrentTimeString() {
     return fmt::format("{:%Y-%m-%d %H:%M:%S}", localTime);
 }
 
+// 时间转紧凑字符串 yyyyMMddHHmmss (字典序 = 时间序, 用作 key 数据段)
+inline std::string toCompactTimeString(const TimePoint& tp) {
+    auto    timeT = Clock::to_time_t(tp);
+    std::tm localTime{};
+    localtime_s(&localTime, &timeT);
+    return fmt::format("{:%Y%m%d%H%M%S}", localTime);
+}
+
+// 获取当前本地时间紧凑字符串 yyyyMMddHHmmss
+inline std::string getCurrentCompactTimeString() { return toCompactTimeString(Clock::now()); }
+
 // 时间转字符串 yyyy-MM-dd HH:mm:ss
 inline std::string timeToString(const TimePoint& tp) {
     auto    timeT = Clock::to_time_t(tp);

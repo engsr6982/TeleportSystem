@@ -29,13 +29,13 @@ void WarpOperatorGUI::sendChooseWarpGUI(Player& player, ChooseWarpCallback callb
 
     auto localeCode = player.getLocaleCode();
 
-    auto& warps = storage->getWarps();
+    auto warps = storage->getWarps();
 
     auto fm = BackSimpleForm();
     fm.setTitle("Teleport System - Warp Manager"_trl(localeCode));
-    fm.setContent("共有 {} 个传送点, 请选择一个: "_trl(localeCode, warps.size()));
+    fm.setContent("{} warps in total, please choose one: "_trl(localeCode, warps.size()));
 
-    fm.appendButton("创建"_trl(localeCode), "textures/ui/color_plus", "path", [](Player& self) {
+    fm.appendButton("Create"_trl(localeCode), "textures/ui/color_plus", "path", [](Player& self) {
         sendCreateOrEditWarpGUI(self);
     });
 
@@ -52,7 +52,7 @@ void WarpOperatorGUI::sendOperatorMenu(Player& player, WarpStorage::Warp warp) {
 
     BackSimpleForm::make<sendChooseWarpGUI>(sendOperatorMenu)
         .setTitle("Teleport System - Warp Manager"_trl(localeCode))
-        .setContent("名称: {}\n坐标: {}\n创建时间: {}\n修改时间: {}"_trl(
+        .setContent("Name: {}\nPos: {}\nCreated: {}\nModified: {}"_trl(
             localeCode,
             warp.name,
             warp.toPosString(),
@@ -60,19 +60,19 @@ void WarpOperatorGUI::sendOperatorMenu(Player& player, WarpStorage::Warp warp) {
             warp.modifiedTime
         ))
         .appendButton(
-            "前往"_trl(localeCode),
+            "Go"_trl(localeCode),
             "textures/ui/send_icon",
             "path",
             [warp](Player& self) { ll::event::EventBus::getInstance().publish(AdminRequestGoWarpEvent{self, warp}); }
         )
         .appendButton(
-            "编辑"_trl(localeCode),
+            "Edit"_trl(localeCode),
             "textures/ui/book_edit_default",
             "path",
             [warp](Player& self) { sendCreateOrEditWarpGUI(self, warp); }
         )
         .appendButton(
-            "删除"_trl(localeCode),
+            "Delete"_trl(localeCode),
             "textures/ui/trash_default",
             "path",
             [warp](Player& self) {
@@ -86,13 +86,13 @@ void WarpOperatorGUI::sendCreateOrEditWarpGUI(Player& player, std::optional<Warp
     auto localeCode = player.getLocaleCode();
 
     CustomForm fm{"Warp Manager - Create Warp"_trl(localeCode)};
-    fm.appendInput("name", "请输入名称: "_trl(localeCode), "string", warp ? warp->name : "");
+    fm.appendInput("name", "Enter name: "_trl(localeCode), "string", warp ? warp->name : "");
     fm.appendInput(
         "pos",
-        "请输入坐标: "_trl(localeCode),
+        "Enter position: "_trl(localeCode),
         "string",
         (warp ? "{},{},{}"_tr(warp->x, warp->y, warp->z) : ""),
-        "使用半角逗号分隔坐标, 例如: x,y,z"_tr(localeCode)
+        "Separate coordinates with half-width commas, e.g. x,y,z"_trl(localeCode)
     );
 
     auto&                           dimMap = VanillaDimensions::DimensionMap();
@@ -117,7 +117,7 @@ void WarpOperatorGUI::sendCreateOrEditWarpGUI(Player& player, std::optional<Warp
         }
     }
 
-    fm.appendDropdown("dimName", "请选择一个维度: "_trl(localeCode), dimNames, index);
+    fm.appendDropdown("dimName", "Choose a dimension: "_trl(localeCode), dimNames, index);
 
     fm.sendTo(
         player,
@@ -135,7 +135,7 @@ void WarpOperatorGUI::sendCreateOrEditWarpGUI(Player& player, std::optional<Warp
                 auto& dimMap  = VanillaDimensions::DimensionMap();
                 auto  dimIter = dimMap.mRight.find(dimName);
                 if (dimIter == dimMap.mRight.end()) {
-                    mc_utils::sendText<mc_utils::Error>(self, "无效的维度名称"_trl(localeCode));
+                    mc_utils::sendText<mc_utils::Error>(self, "Invalid dimension name"_trl(localeCode));
                     return;
                 }
                 dimid = dimIter->second;
@@ -152,7 +152,7 @@ void WarpOperatorGUI::sendCreateOrEditWarpGUI(Player& player, std::optional<Warp
                     parts.push_back(part);
                 }
                 if (parts.size() != 3) {
-                    mc_utils::sendText<mc_utils::Error>(self, "坐标格式错误"_trl(localeCode));
+                    mc_utils::sendText<mc_utils::Error>(self, "Invalid position format"_trl(localeCode));
                     return;
                 } else {
                     try {
@@ -160,7 +160,7 @@ void WarpOperatorGUI::sendCreateOrEditWarpGUI(Player& player, std::optional<Warp
                         v3.y = std::stof(parts[1]);
                         v3.z = std::stof(parts[2]);
                     } catch (...) {
-                        mc_utils::sendText<mc_utils::Error>(self, "捕获到异常，请检查坐标"_trl(localeCode));
+                        mc_utils::sendText<mc_utils::Error>(self, "Exception caught, please check the position"_trl(localeCode));
                         return;
                     }
                 }

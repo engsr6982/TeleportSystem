@@ -1,117 +1,191 @@
+#include "ll/api/data/KeyValueDB.h"
 #include "WarpStorage.h"
-#include "ltps/TeleportSystem.h"
+#include "ltps/database/DbUtils.h"
+#include "ltps/database/StorageKeys.h"
 #include "ltps/utils/JsonUtls.h"
-#include "ltps/utils/McUtils.h"
 #include "ltps/utils/TimeUtils.h"
-#include "mc/deps/core/math/Vec3.h"
-#include "mc/world/actor/player/Player.h"
-#include "mc/world/level/dimension/VanillaDimensions.h"
 #include "nlohmann/json.hpp"
+
+#include <algorithm>
+#include <mc/deps/core/math/Vec3.h>
+#include <mc/world/actor/player/Player.h>
+#include <mc/world/level/dimension/VanillaDimensions.h>
+
 
 namespace ltps::warp {
 
-WarpStorage::WarpStorage() = default;
+namespace {
 
-void WarpStorage::load() {
-    auto& db = getDatabase();
+constexpr std::string_view kLegacyBigKey = "warp";
 
-    if (!db.has(STORAGE_KEY)) {
-        db.set(STORAGE_KEY, "[]");
-    }
-
-    auto rawJson = db.get(STORAGE_KEY);
-    if (!rawJson) {
-        throw std::runtime_error("Could not load warp data");
-    }
-
-    try {
-        auto json = nlohmann::json::parse(rawJson.value());
-        if (!json.is_array()) {
-            throw std::runtime_error("Could not parse warp data");
-        }
-
-        for (auto& [key, value] : json.items()) {
-            Warp warp;
-            json_utils::json2structTryPatch(warp, value);
-            mWarps.push_back(std::move(warp));
-        }
-        TeleportSystem::getInstance().getSelf().getLogger().info("Loaded {} warps", mWarps.size());
-    } catch (const nlohmann::json::parse_error& e) {
-        throw std::runtime_error("Could not parse warp data");
-    }
+std::string serialize(WarpStorage::Warp const& warp) {
+    return json_utils::struct2json(const_cast<WarpStorage::Warp&>(warp)).dump();
 }
 
-void WarpStorage::unload() { writeBack(); }
-
-void WarpStorage::writeBack() {
-    auto& db   = getDatabase();
-    auto  json = json_utils::struct2json(mWarps);
-    db.set(STORAGE_KEY, json.dump());
+WarpStorage::Warp deserialize(std::string_view raw) {
+    WarpStorage::Warp warp{};
+    auto              json = nlohmann::json::parse(raw, nullptr, false);
+    if (!json.is_discarded() && json.is_object()) {
+        json_utils::json2structTryPatch(warp, json);
+    }
+    return warp;
 }
+
+} // namespace
+
+
+WarpStorage::WarpStorage(ll::data::KeyValueDB& db) : IStorage(db) {}
+
+std::string_view WarpStorage::getBusinessGroup() const { return "warp"; }
+
+std::vector<std::string> WarpStorage::getNames() const {
+    auto raw = getDatabase().get(keys::kIndexWarp);
+    return raw.has_value() ? db_utils::fromJsonArray(raw.value()) : std::vector<std::string>{};
+}
+
+void WarpStorage::setNames(ll::data::KeyValueDB::WriteBatch& batch, std::vector<std::string> const& names) const {
+    batch.set(keys::kIndexWarp, db_utils::toJsonArray(names));
+}
+
+
+void WarpStorage::migrateFromV1(ll::data::KeyValueDB& v1, ll::data::KeyValueDB& v2) {
+    auto raw = v1.get(kLegacyBigKey);
+    if (!raw.has_value()) {
+        return;
+    }
+    auto json = nlohmann::json::parse(raw.value(), nullptr, false);
+    if (json.is_discarded() || !json.is_array()) {
+        return;
+    }
+    std::vector<std::string> names;
+    for (auto& element : json) {
+        Warp warp{};
+        json_utils::json2structTryPatch(warp, element);
+        if (warp.name.empty()) {
+            continue;
+        }
+        v2.set(fmt::format(keys::kDataWarp, key_utils::escapeSegment(warp.name)), serialize(warp));
+        names.emplace_back(warp.name);
+    }
+    v2.set(keys::kIndexWarp, db_utils::toJsonArray(names));
+}
+
+void WarpStorage::migrateUser(
+    ll::data::KeyValueDB::WriteBatch& /*batch*/,
+    mce::UUID const& /*uuid*/,
+    RealName const& /*name*/,
+    std::vector<LegacyRecord> const& /*legacyRecords*/
+) {
+    // 公共传送点无用户归属, 不存在 legacy 记录
+}
+
+void WarpStorage::rebuildIndexes(ll::data::KeyValueDB& db) {
+    std::vector<std::string> names;
+    db_utils::forEachPrefix(db, keys::kPrefixDataWarp, [&](std::string_view key, std::string_view /*value*/) {
+        auto name = db_utils::segmentOf(key, 0, keys::kPrefixDataWarp);
+        if (!name.empty()) {
+            names.emplace_back(name);
+        }
+    });
+    db.set(keys::kIndexWarp, db_utils::toJsonArray(names));
+}
+
 
 bool WarpStorage::hasWarp(std::string const& name) const {
-    auto it = std::find_if(mWarps.begin(), mWarps.end(), [&](Warp const& warp) { return name == warp.name; });
-    return it != mWarps.end();
+    return getDatabase().has(fmt::format(keys::kDataWarp, key_utils::escapeSegment(name)));
 }
 
 Result<void> WarpStorage::addWarp(Warp warp) {
     if (hasWarp(warp.name)) {
-        return std::unexpected("Warp name repeated");
+        return ll::makeI18nStringError<"Warp name repeated">();
     }
-    mWarps.emplace_back(warp);
+    auto names = getNames();
+    names.emplace_back(warp.name);
+
+    ll::data::KeyValueDB::WriteBatch batch;
+    batch.set(fmt::format(keys::kDataWarp, key_utils::escapeSegment(warp.name)), serialize(warp));
+    setNames(batch, names);
+    getDatabase().write(batch);
     return {};
 }
 
 Result<void> WarpStorage::updateWarp(std::string const& name, Warp warp) {
-    auto it = std::find_if(mWarps.begin(), mWarps.end(), [&](Warp const& warp) { return warp.name == name; });
-    if (it == mWarps.end()) {
-        return std::unexpected("Warp not found");
+    if (!hasWarp(name)) {
+        return ll::makeI18nStringError<"Warp not found">();
     }
-    it->updateModifiedTime();
-    *it = std::move(warp);
+    warp.updateModifiedTime();
+
+    ll::data::KeyValueDB::WriteBatch batch;
+    if (name != warp.name) {
+        // 改名: 落新键 + 删旧键 + 同步索引
+        batch.del(fmt::format(keys::kDataWarp, key_utils::escapeSegment(name)));
+        batch.set(fmt::format(keys::kDataWarp, key_utils::escapeSegment(warp.name)), serialize(warp));
+        auto names = getNames();
+        if (auto it = std::find(names.begin(), names.end(), name); it != names.end()) {
+            *it = warp.name;
+        }
+        setNames(batch, names);
+    } else {
+        batch.set(fmt::format(keys::kDataWarp, key_utils::escapeSegment(name)), serialize(warp));
+    }
+    getDatabase().write(batch);
     return {};
 }
 
 Result<void> WarpStorage::removeWarp(std::string const& name) {
-    auto it = std::find_if(mWarps.begin(), mWarps.end(), [&](Warp const& warp) { return warp.name == name; });
-    if (it == mWarps.end()) {
-        return std::unexpected("Warp not found");
+    if (!hasWarp(name)) {
+        return ll::makeI18nStringError<"Warp not found">();
     }
-    mWarps.erase(it);
+    auto names = getNames();
+    std::erase(names, name);
+
+    ll::data::KeyValueDB::WriteBatch batch;
+    batch.del(fmt::format(keys::kDataWarp, key_utils::escapeSegment(name)));
+    setNames(batch, names);
+    getDatabase().write(batch);
     return {};
 }
 
 std::optional<WarpStorage::Warp> WarpStorage::getWarp(std::string const& name) const {
-    auto it = std::find_if(mWarps.begin(), mWarps.end(), [&](Warp const& warp) { return warp.name == name; });
-    if (it == mWarps.end()) {
+    auto raw = getDatabase().get(fmt::format(keys::kDataWarp, key_utils::escapeSegment(name)));
+    if (!raw.has_value()) {
         return std::nullopt;
     }
-    return *it;
+    return deserialize(raw.value());
 }
 
-WarpStorage::Warps const& WarpStorage::getWarps() const { return mWarps; }
-
-std::vector<WarpStorage::Warp> WarpStorage::getWarps(int count) const {
-    std::vector<Warp> res;
-    res.reserve(count);
-
-    int  counter = 0;
-    auto iter    = mWarps.begin();
-
-    while (counter < count && iter != mWarps.end()) {
-        res.emplace_back(*iter); // 拷贝
-        ++counter;
-        ++iter;
+WarpStorage::Warps WarpStorage::getWarps() const {
+    Warps result;
+    for (auto const& name : getNames()) {
+        if (auto warp = getWarp(name)) {
+            result.emplace_back(std::move(warp.value()));
+        }
     }
-    return res;
+    return result;
 }
 
+WarpStorage::Warps WarpStorage::getWarps(int count) const {
+    Warps result;
+    result.reserve(static_cast<std::size_t>(std::max(0, count)));
+    for (auto const& name : getNames()) {
+        if (static_cast<int>(result.size()) >= count) {
+            break;
+        }
+        if (auto warp = getWarp(name)) {
+            result.emplace_back(std::move(warp.value()));
+        }
+    }
+    return result;
+}
 
 WarpStorage::Warps WarpStorage::queryWarp(std::string const& keyword) const {
     Warps result;
-    for (auto const& warp : mWarps) {
-        if (warp.name.find(keyword) != std::string::npos) {
-            result.emplace_back(warp);
+    for (auto const& name : getNames()) {
+        if (name.find(keyword) == std::string::npos) {
+            continue;
+        }
+        if (auto warp = getWarp(name)) {
+            result.emplace_back(std::move(warp.value()));
         }
     }
     return result;
@@ -141,6 +215,7 @@ void WarpStorage::Warp::updatePosition(Vec3 const& vec3) {
     y = vec3.y;
     z = vec3.z;
 }
+
 std::string WarpStorage::Warp::toString() const { return "{} => {}"_tr(name, toPosString()); }
 std::string WarpStorage::Warp::toPosString() const {
     return "{}({},{},{})"_tr(VanillaDimensions::toString(dimid), x, y, z);

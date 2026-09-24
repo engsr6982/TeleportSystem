@@ -13,9 +13,41 @@
 #include "ltps/modules/home/event/HomeEvents.h"
 #include "ltps/utils/McUtils.h"
 #include "ltps/utils/StringUtils.h"
+#include "ltps/validator/NameValidator.h"
 
 
 namespace ltps::home {
+
+namespace {
+
+// 家园名称校验 (长度等由配置驱动)
+NameValidator makeNameValidator() {
+    return NameValidator{
+        ValidatorOptions{.maxLength = static_cast<std::size_t>(getConfig().modules.home.nameLength)}
+    };
+}
+
+void sendNameValidationError(Player& player, std::string_view localeCode, NameValidation result, std::string_view name) {
+    switch (result) {
+    case NameValidation::TooLong:
+        mc_utils::sendText<mc_utils::Error>(
+            player,
+            "Home name is too long ({}/{})"_trl(localeCode, string_utils::length(std::string{name}),
+                                                getConfig().modules.home.nameLength)
+        );
+        break;
+    case NameValidation::Empty:
+        mc_utils::sendText<mc_utils::Error>(player, "Home name cannot be empty"_trl(localeCode));
+        break;
+    case NameValidation::IllegalChar:
+        mc_utils::sendText<mc_utils::Error>(player, "Home name contains illegal characters"_trl(localeCode));
+        break;
+    case NameValidation::Ok:
+        break;
+    }
+}
+
+} // namespace
 
 HomeModule::HomeModule() = default;
 
@@ -30,9 +62,8 @@ bool HomeModule::enable() {
 
     mListeners.emplace_back(bus.emplaceListener<PlayerRequestAddHomeEvent>(
         [this](PlayerRequestAddHomeEvent& ev) {
-            auto&           player     = ev.getPlayer();
-            auto            localeCode = player.getLocaleCode();
-            RealName const& realName   = player.getRealName();
+            auto& player     = ev.getPlayer();
+            auto  localeCode = player.getLocaleCode();
 
             auto home = HomeStorage::Home::make(player.getPosition(), player.getDimensionId(), ev.getName());
 
@@ -49,20 +80,20 @@ bool HomeModule::enable() {
                 throw std::runtime_error("HomeStorage not found");
             }
 
-            auto res = storage->addHome(realName, home);
+            auto res = storage->addHome(player.getUuid(), home);
             if (!res) {
-                mc_utils::sendText<mc_utils::Error>(player, "添加家园失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to add home"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[HomeModule]: Add home failed! player: {}, homeName: {}, error: {}",
-                    realName,
+                    player.getRealName(),
                     home.name,
-                    res.error()
+                    res.error().message()
                 );
                 ev.cancel();
                 return;
             }
 
-            mc_utils::sendText(player, "添加家园成功"_trl(localeCode));
+            mc_utils::sendText(player, "Home added"_trl(localeCode));
 
             auto added = HomeAddedEvent(player, home);
             bus.publish(added);
@@ -79,51 +110,42 @@ bool HomeModule::enable() {
                 throw std::runtime_error("HomeStorage not found");
             }
 
-            auto&           player     = ev.getPlayer();
-            auto            localeCode = player.getLocaleCode();
-            RealName const& realName   = player.getRealName();
+            auto& player     = ev.getPlayer();
+            auto  localeCode = player.getLocaleCode();
 
             auto const& dimid = ev.getHome().dimid;
             if (getConfig().modules.home.disallowedDimensions.contains(dimid)) {
-                mc_utils::sendText<mc_utils::Error>(player, "该维度无法创建家园"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Homes cannot be created in this dimension"_trl(localeCode));
                 ev.cancel();
                 return;
             }
 
             auto const& homeName = ev.getHome().name;
-            if (!string_utils::isLengthValid(homeName, getConfig().modules.home.nameLength)) {
+            auto        validator = makeNameValidator();
+            if (auto result = validator.validate(homeName); result != NameValidation::Ok) {
+                sendNameValidationError(player, localeCode, result, homeName);
+                ev.cancel();
+                return;
+            }
+
+            if (storage->hasHome(player.getUuid(), homeName)) {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "家园名称长度不符合要求({}/{})"_trl(
-                        localeCode,
-                        string_utils::length(homeName),
-                        getConfig().modules.home.nameLength
-                    )
+                    "Home name already exists, please use another name"_trl(localeCode)
                 );
                 ev.cancel();
                 return;
             }
 
-            if (storage->hasHome(realName, homeName)) {
-                mc_utils::sendText<mc_utils::Error>(player, "家园名称重复，请使用其它名称"_trl(localeCode));
-                ev.cancel();
-                return;
-            }
-
-            auto count = 0;
-            if (storage->hasPlayer(realName)) {
-                if (auto res = storage->getHomeCount(realName)) {
-                    count = res.value();
-                }
-            }
+            auto count = storage->getHomeCount(player.getUuid());
 
             bool unLimited = false;
             if (auto pe = getStorageManager().getStorage<PermissionStorage>()) {
-                unLimited = pe->hasPermission(realName, PermissionStorage::Permission::UnlimitedHome);
+                unLimited = pe->hasPermission(player.getUuid(), PermissionStorage::Permission::UnlimitedHome);
             }
 
             if (count > getConfig().modules.home.maxHome && !unLimited) {
-                mc_utils::sendText<mc_utils::Error>(player, "家园数量超过上限，无法创建"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Home count limit reached"_trl(localeCode));
                 ev.cancel();
                 return;
             }
@@ -133,13 +155,13 @@ bool HomeModule::enable() {
 
             auto price = cl.eval();
             if (!price.has_value()) {
-                mc_utils::sendText<mc_utils::Error>(player, "计算价格失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to calculate price"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[HomeModule]: Calculate price failed! player: {}, homeName: {}, count: {}, error: {}",
-                    realName,
+                    player.getRealName(),
                     homeName,
                     count,
-                    price.error()
+                    price.error().message()
                 );
                 ev.cancel();
                 return;
@@ -147,7 +169,6 @@ bool HomeModule::enable() {
 
             auto& economy = EconomySystemManager::getInstance();
             if (!economy->reduce(player, static_cast<llong>(price.value()))) {
-                // mc_utils::sendText<mc_utils::Error>(player, "经济不足，无法创建"_trl(localeCode));
                 economy->sendNotEnoughMoneyMessage(player, static_cast<llong>(price.value()), localeCode);
                 ev.cancel();
                 return;
@@ -176,20 +197,20 @@ bool HomeModule::enable() {
                 throw std::runtime_error("HomeStorage not found");
             }
 
-            auto res = storage->removeHome(player.getRealName(), name);
+            auto res = storage->removeHome(player.getUuid(), name);
             if (!res) {
-                mc_utils::sendText<mc_utils::Error>(player, "删除家园失败"_trl(player.getLocaleCode()));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to remove home"_trl(player.getLocaleCode()));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[HomeModule]: Remove home failed! player: {}, homeName: {}, error: {}",
                     player.getRealName(),
                     name,
-                    res.error()
+                    res.error().message()
                 );
                 ev.invokeCallback(false);
                 ev.cancel();
                 return;
             }
-            mc_utils::sendText(player, "删除家园 {} 成功!"_trl(player.getLocaleCode(), name));
+            mc_utils::sendText(player, "Home {} removed!"_trl(player.getLocaleCode(), name));
 
             auto removed = HomeRemovedEvent(player, name);
             bus.publish(removed);
@@ -203,9 +224,7 @@ bool HomeModule::enable() {
         [this](PlayerRequestGoHomeEvent& ev) {
             auto& bus = ll::event::EventBus::getInstance();
 
-
             auto& player     = ev.getPlayer();
-            auto  realName   = player.getRealName();
             auto  localeCode = player.getLocaleCode();
             auto& name       = ev.getName();
 
@@ -214,9 +233,9 @@ bool HomeModule::enable() {
                 throw std::runtime_error("HomeStorage not found");
             }
 
-            auto home = storage->getHome(realName, name);
+            auto home = storage->getHome(player.getUuid(), name);
             if (!home) {
-                mc_utils::sendText<mc_utils::Error>(player, "家园不存在"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Home does not exist"_trl(localeCode));
                 ev.cancel();
                 return;
             }
@@ -242,15 +261,18 @@ bool HomeModule::enable() {
     mListeners.emplace_back(bus.emplaceListener<HomeTeleportingEvent>(
         [this](HomeTeleportingEvent& ev) {
             auto& player     = ev.getPlayer();
-            auto  realName   = player.getRealName();
             auto  localeCode = player.getLocaleCode();
 
             auto& cooldown = getCooldown();
+            auto  uuidKey  = player.getUuid().asString();
 
-            if (cooldown.isCooldown(realName)) {
+            if (cooldown.isCooldown(uuidKey)) {
                 mc_utils::sendText(
                     player,
-                    "传送冷却中, 请稍后重试，冷却时间: {}"_trl(localeCode, cooldown.getCooldownString(realName))
+                    "Teleport on cooldown, please retry later. Remaining: {}"_trl(
+                        localeCode,
+                        cooldown.getCooldownString(uuidKey)
+                    )
                 );
                 ev.cancel();
                 return;
@@ -261,12 +283,12 @@ bool HomeModule::enable() {
             auto price = cl.eval();
 
             if (!price) {
-                mc_utils::sendText<mc_utils::Error>(player, "计算价格失败"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Failed to calculate price"_trl(localeCode));
                 TeleportSystem::getInstance().getSelf().getLogger().error(
                     "[HomeModule]: Calculate price failed! player: {}, homeName: {}, error: {}",
-                    realName,
+                    player.getRealName(),
                     ev.getHome().name,
-                    price.error()
+                    price.error().message()
                 );
                 ev.cancel();
                 return;
@@ -279,7 +301,7 @@ bool HomeModule::enable() {
                 return;
             }
 
-            cooldown.setCooldown(realName, getConfig().modules.home.cooldownTime);
+            cooldown.setCooldown(uuidKey, getConfig().modules.home.cooldownTime);
         },
         ll::event::EventPriority::High
     ));
@@ -288,7 +310,6 @@ bool HomeModule::enable() {
         [this](PlayerRequestEditHomeEvent& ev) {
             auto& bus        = ll::event::EventBus::getInstance();
             auto& player     = ev.getPlayer();
-            auto  realName   = player.getRealName();
             auto  localeCode = player.getLocaleCode();
 
             auto&      name    = ev.getName();
@@ -297,9 +318,12 @@ bool HomeModule::enable() {
             auto const newName = ev.getNewName();
 
             auto storage = this->getStorage();
-            auto home    = storage->getHome(realName, name);
+            auto home    = storage->getHome(player.getUuid(), name);
             if (!home) {
-                mc_utils::sendText<mc_utils::Error>(player, "家园 {} 不存在，本次操作无法继续"_trl(localeCode, name));
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Home {} does not exist, operation aborted"_trl(localeCode, name)
+                );
                 ev.cancel();
                 return;
             }
@@ -319,10 +343,13 @@ bool HomeModule::enable() {
                 home->dimid = player.getDimensionId();
             }
 
-            if (auto res = storage->updateHome(realName, name, *home)) {
-                mc_utils::sendText(player, "家园 {} 数据已更新"_trl(localeCode, name));
+            if (auto res = storage->updateHome(player.getUuid(), name, *home)) {
+                mc_utils::sendText(player, "Home {} updated"_trl(localeCode, name));
             } else {
-                mc_utils::sendText(player, "更改家园数据失败: {}"_trl(localeCode, res.error()));
+                mc_utils::sendText(
+                    player,
+                    "Failed to update home data: {}"_trl(localeCode, res.error().message())
+                );
                 ev.cancel();
                 return;
             }
@@ -340,15 +367,9 @@ bool HomeModule::enable() {
             auto const newName    = ev.getNewName();
 
             if (newName.has_value()) {
-                if (!string_utils::isLengthValid(*newName, getConfig().modules.home.nameLength)) {
-                    mc_utils::sendText<mc_utils::Error>(
-                        player,
-                        "家园名称长度不符合要求({}/{})"_trl(
-                            localeCode,
-                            string_utils::length(*newName),
-                            getConfig().modules.home.nameLength
-                        )
-                    );
+                auto validator = makeNameValidator();
+                if (auto result = validator.validate(*newName); result != NameValidation::Ok) {
+                    sendNameValidationError(player, localeCode, result, *newName);
                     ev.cancel();
                 }
             }
@@ -397,15 +418,24 @@ bool HomeModule::enable() {
                 return;
             }
 
+            auto uuid = getStorageManager().resolveUuid(target);
+            if (!uuid) {
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Failed to resolve player {}: they must join the server once first"_trl(localeCode, target)
+                );
+                return;
+            }
+
             auto home = HomeStorage::Home::make(pos, dimid, name);
 
             auto storage = this->getStorage();
-            if (auto res = storage->addHome(target, home)) {
-                mc_utils::sendText(player, "为玩家 {} 创建家园 {} 成功"_trl(localeCode, target, name));
+            if (auto res = storage->addHome(uuid.value(), home)) {
+                mc_utils::sendText(player, "Created home {} for player {}"_trl(localeCode, name, target));
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "为玩家 {} 创建家园 {} 失败: {}"_trl(localeCode, target, name, res.error())
+                    "Failed to create home {} for player {}: {}"_trl(localeCode, name, target, res.error().message())
                 );
             }
         },
@@ -420,28 +450,27 @@ bool HomeModule::enable() {
             auto  dimid      = ev.getDimid();
 
             if (getConfig().modules.home.disallowedDimensions.contains(dimid)) {
-                mc_utils::sendText<mc_utils::Error>(player, "该维度无法创建家园"_trl(localeCode));
+                mc_utils::sendText<mc_utils::Error>(player, "Homes cannot be created in this dimension"_trl(localeCode));
                 ev.cancel();
                 return;
             }
 
-            if (!string_utils::isLengthValid(name, getConfig().modules.home.nameLength)) {
-                mc_utils::sendText<mc_utils::Error>(
-                    player,
-                    "家园名称长度不符合要求({}/{})"_trl(
-                        localeCode,
-                        string_utils::length(name),
-                        getConfig().modules.home.nameLength
-                    )
-                );
+            auto validator = makeNameValidator();
+            if (auto result = validator.validate(name); result != NameValidation::Ok) {
+                sendNameValidationError(player, localeCode, result, name);
                 ev.cancel();
                 return;
             }
 
-            if (getStorage()->hasHome(target, name)) {
-                mc_utils::sendText<mc_utils::Error>(player, "家园名称重复，请使用其它名称"_trl(localeCode));
-                ev.cancel();
-                return;
+            if (auto uuid = getStorageManager().resolveUuid(target)) {
+                if (getStorage()->hasHome(uuid.value(), name)) {
+                    mc_utils::sendText<mc_utils::Error>(
+                        player,
+                        "Home name already exists, please use another name"_trl(localeCode)
+                    );
+                    ev.cancel();
+                    return;
+                }
             }
         },
         ll::event::EventPriority::High
@@ -462,13 +491,33 @@ bool HomeModule::enable() {
                 return;
             }
 
+            auto uuid = getStorageManager().resolveUuid(target);
+            if (!uuid) {
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Failed to resolve player {}: they must join the server once first"_trl(
+                        player.getLocaleCode(),
+                        target
+                    )
+                );
+                return;
+            }
+
             auto storage = this->getStorage();
-            if (auto res = storage->updateHome(target, home.name, newHome)) {
-                mc_utils::sendText(player, "修改玩家 {} 的家园 {} 成功"_trl(player.getLocaleCode(), target, home.name));
+            if (auto res = storage->updateHome(uuid.value(), home.name, newHome)) {
+                mc_utils::sendText(
+                    player,
+                    "Updated home {} of player {}"_trl(player.getLocaleCode(), home.name, target)
+                );
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "修改玩家 {} 的家园 {} 失败: {}"_trl(player.getLocaleCode(), target, home.name, res.error())
+                    "Failed to update home {} of player {}: {}"_trl(
+                        player.getLocaleCode(),
+                        home.name,
+                        target,
+                        res.error().message()
+                    )
                 );
             }
 
@@ -483,15 +532,9 @@ bool HomeModule::enable() {
             auto        localeCode = player.getLocaleCode();
             auto const& newName    = ev.getNewHome().name;
 
-            if (!string_utils::isLengthValid(newName, getConfig().modules.home.nameLength)) {
-                mc_utils::sendText<mc_utils::Error>(
-                    player,
-                    "家园名称长度不符合要求({}/{})"_trl(
-                        localeCode,
-                        string_utils::length(newName),
-                        getConfig().modules.home.nameLength
-                    )
-                );
+            auto validator = makeNameValidator();
+            if (auto result = validator.validate(newName); result != NameValidation::Ok) {
+                sendNameValidationError(player, localeCode, result, newName);
                 ev.cancel();
             }
         },
@@ -512,13 +555,33 @@ bool HomeModule::enable() {
                 return;
             }
 
+            auto uuid = getStorageManager().resolveUuid(target);
+            if (!uuid) {
+                mc_utils::sendText<mc_utils::Error>(
+                    player,
+                    "Failed to resolve player {}: they must join the server once first"_trl(
+                        player.getLocaleCode(),
+                        target
+                    )
+                );
+                return;
+            }
+
             auto storage = this->getStorage();
-            if (auto res = storage->removeHome(target, home.name)) {
-                mc_utils::sendText(player, "删除玩家 {} 的家园 {} 成功"_trl(player.getLocaleCode(), target, home.name));
+            if (auto res = storage->removeHome(uuid.value(), home.name)) {
+                mc_utils::sendText(
+                    player,
+                    "Removed home {} of player {}"_trl(player.getLocaleCode(), home.name, target)
+                );
             } else {
                 mc_utils::sendText<mc_utils::Error>(
                     player,
-                    "删除玩家 {} 的家园 {} 失败: {}"_trl(player.getLocaleCode(), target, home.name, res.error())
+                    "Failed to remove home {} of player {}: {}"_trl(
+                        player.getLocaleCode(),
+                        home.name,
+                        target,
+                        res.error().message()
+                    )
                 );
                 return;
             }

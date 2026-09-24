@@ -14,7 +14,7 @@ void TprCommand::setup() {
         .overload()
         .execute([](CommandOrigin const& origin, CommandOutput& output) {
             if (origin.getOriginType() != CommandOriginType::Player) {
-                mc_utils::sendText<mc_utils::Error>(output, "此命令只能由玩家执行"_tr());
+                mc_utils::sendText<mc_utils::Error>(output, "This command can only be run by a player"_tr());
                 return;
             }
             auto& player = *static_cast<Player*>(origin.getEntity());

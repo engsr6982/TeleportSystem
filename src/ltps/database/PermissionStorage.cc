@@ -1,94 +1,116 @@
+#include "ll/api/data/KeyValueDB.h"
 #include "PermissionStorage.h"
 #include "ll/api/io/FileUtils.h"
+#include "ll/api/service/PlayerInfo.h"
 #include "ll/api/utils/StringUtils.h"
 #include "ltps/TeleportSystem.h"
-#include "ltps/utils/JsonUtls.h"
+#include "ltps/database/DbUtils.h"
+#include "ltps/database/StorageKeys.h"
 #include "ltps/utils/StringUtils.h"
 #include "magic_enum/magic_enum.hpp"
-#include "mc/world/actor/player/Player.h"
 #include "nlohmann/json.hpp"
-#include "nlohmann/json_fwd.hpp"
 #include <filesystem>
 #include <optional>
 
 
 namespace ltps {
 
+namespace {
 
-PermissionStorage::PermissionStorage() = default;
+std::string serializeMask(int mask) { return nlohmann::json{{"perms", mask}}.dump(); }
 
-void PermissionStorage::load() {
-    if (_hasLegacyPermissionFile()) {
-        _tryLoadLegacyPermissionFile(); // 加载旧版权限文件
-        _renameLegacyPermissionFile();  // 重命名旧版权限文件
-        writeBack();                    // 将权限写入数据库
-        TeleportSystem::getInstance().getSelf().getLogger().trace("Loaded legacy permission file");
+int parseMask(std::optional<std::string> const& raw) {
+    if (!raw.has_value()) {
+        return 0;
+    }
+    auto json = nlohmann::json::parse(raw.value(), nullptr, false);
+    if (json.is_discarded() || !json.is_object()) {
+        return 0;
+    }
+    return json.value("perms", 0);
+}
+
+PermissionStorage::Permissions maskToPermissions(int mask) {
+    PermissionStorage::Permissions result;
+    for (auto const& p : magic_enum::enum_values<PermissionStorage::Permission>()) {
+        if (p == PermissionStorage::Permission::None) {
+            continue;
+        }
+        if ((mask & static_cast<int>(p)) != 0) {
+            result.push_back(p);
+        }
+    }
+    return result;
+}
+
+} // namespace
+
+
+PermissionStorage::PermissionStorage(ll::data::KeyValueDB& db) : IStorage(db) {}
+
+std::string_view PermissionStorage::getBusinessGroup() const { return "permission"; }
+
+void PermissionStorage::expandLegacyData(nlohmann::json const& json, ll::data::KeyValueDB& v2) {
+    if (!json.is_object()) {
         return;
     }
-    TeleportSystem::getInstance().getSelf().getLogger().trace("No legacy permission file found");
+    v2.set(keys::kDataPermissionDefault, serializeMask(json.value("mDefaultPerms", 0)));
 
-    auto& db = getDatabase();
-
-    if (!db.has(STORAGE_KEY)) {
-        db.set(STORAGE_KEY, "{}");
+    auto playerPerms = json.find("mPlayerPerms");
+    if (playerPerms == json.end() || !playerPerms->is_object()) {
+        return;
     }
-
-    auto rawJson = db.get(STORAGE_KEY);
-    if (!rawJson.has_value()) {
-        throw std::runtime_error("Failed to load permissions");
-    }
-
-    try {
-        auto json = nlohmann::json::parse(rawJson.value());
-
-        json_utils::json2structTryPatch(mData, json);
-
-        TeleportSystem::getInstance().getSelf().getLogger().info(
-            "Loaded permissions, {} entries",
-            mData.mPlayerPerms.size()
-        );
-    } catch (nlohmann::json::parse_error& e) {
-        throw std::runtime_error("Failed to parse permissions: " + std::string(e.what()));
+    for (auto& [name, mask] : playerPerms->items()) {
+        if (!mask.is_number_integer()) {
+            continue;
+        }
+        auto text = serializeMask(mask.get<int>());
+        if (auto info = ll::service::PlayerInfo::getInstance().fromName(name)) {
+            v2.set(fmt::format(keys::kDataPermission, info->uuid.asString()), text);
+        } else {
+            v2.set(fmt::format(keys::kLegacyPermission, key_utils::escapeSegment(name)), text);
+        }
     }
 }
 
-void PermissionStorage::unload() { writeBack(); }
+void PermissionStorage::migrateFromV1(ll::data::KeyValueDB& v1, ll::data::KeyValueDB& v2) {
+    auto raw = v1.get(LEGACY_BIG_KEY);
+    if (!raw.has_value()) {
+        return;
+    }
+    expandLegacyData(nlohmann::json::parse(raw.value(), nullptr, false), v2);
+}
 
-void PermissionStorage::writeBack() {
-    auto& db   = getDatabase();
-    auto  json = json_utils::struct2json(mData);
-    db.set(STORAGE_KEY, json.dump());
+void PermissionStorage::migrateLegacyFiles(ll::data::KeyValueDB& v2) {
+    if (!_hasLegacyPermissionFile()) {
+        return;
+    }
+    auto path    = TeleportSystem::getInstance().getSelf().getDataDir() / LEGACY_FILE_NAME;
+    auto content = ll::file_utils::readFile(path);
+    if (!content.has_value()) {
+        throw std::runtime_error("Failed to read legacy permission file");
+    }
+    expandLegacyData(nlohmann::json::parse(content.value(), nullptr, false), v2);
+    _renameLegacyPermissionFile();
+    TeleportSystem::getInstance().getSelf().getLogger().trace("Migrated legacy permission file");
+}
+
+void PermissionStorage::migrateUser(
+    ll::data::KeyValueDB::WriteBatch&            batch,
+    mce::UUID const&                 uuid,
+    RealName const& /*name*/,
+    std::vector<LegacyRecord> const& legacyRecords
+) {
+    for (auto& [key, value] : legacyRecords) {
+        batch.set(fmt::format(keys::kDataPermission, uuid.asString()), value);
+        batch.del(key);
+    }
 }
 
 
 bool PermissionStorage::_hasLegacyPermissionFile() const {
     auto path = TeleportSystem::getInstance().getSelf().getDataDir() / LEGACY_FILE_NAME;
     return std::filesystem::exists(path);
-}
-
-void PermissionStorage::_tryLoadLegacyPermissionFile() {
-    if (!_hasLegacyPermissionFile()) {
-        return;
-    }
-
-    auto path    = TeleportSystem::getInstance().getSelf().getDataDir() / LEGACY_FILE_NAME;
-    auto content = ll::file_utils::readFile(path);
-    if (!content.has_value()) {
-        throw std::runtime_error("Failed to read legacy permission file");
-    }
-
-    try {
-        auto json = nlohmann::json::parse(content.value());
-
-        json_utils::json2structTryPatch(mData, json);
-
-        TeleportSystem::getInstance().getSelf().getLogger().info(
-            "Loaded legacy permissions, {} entries",
-            mData.mPlayerPerms.size()
-        );
-    } catch (nlohmann::json::parse_error& e) {
-        throw std::runtime_error("Failed to parse legacy permission file: " + std::string(e.what()));
-    }
 }
 
 void PermissionStorage::_renameLegacyPermissionFile() const {
@@ -101,73 +123,112 @@ void PermissionStorage::_renameLegacyPermissionFile() const {
 
 
 bool PermissionStorage::hasDefaultPermission(Permission permission) const {
-    return (mData.mDefaultPerms & static_cast<int>(permission)) != 0;
+    return (parseMask(getDatabase().get(keys::kDataPermissionDefault)) & static_cast<int>(permission)) != 0;
 }
 
-bool PermissionStorage::hasPermission(RealName const& realName, Permission permission, bool includeDefault) const {
-    if (includeDefault && hasDefaultPermission(permission)) return true;
-    if (!mData.mPlayerPerms.contains(realName)) return false;
-    return (mData.mPlayerPerms.at(realName) & static_cast<int>(permission)) != 0;
-}
-
-Result<void> PermissionStorage::grantPermission(RealName const& realName, Permission permission) {
-    if (hasPermission(realName, permission, false)) return std::unexpected("Permission already granted");
-    mData.mPlayerPerms[realName] |= static_cast<int>(permission);
-    return {};
-}
-
-Result<void> PermissionStorage::revokePermission(RealName const& realName, Permission permission) {
-    if (!hasPermission(realName, permission, false)) return std::unexpected("Permission not granted");
-    mData.mPlayerPerms[realName] &= ~static_cast<int>(permission);
-    return {};
-}
-
-std::vector<PermissionStorage::Permission> PermissionStorage::getPermissions(RealName const& realName) const {
-    if (!mData.mPlayerPerms.contains(realName)) return {};
-    std::vector<Permission> result;
-    for (auto const& p : magic_enum::enum_values<Permission>()) {
-        if (hasPermission(realName, p, false)) result.push_back(p);
+bool PermissionStorage::hasPermission(mce::UUID const& uuid, Permission permission, bool includeDefault) const {
+    if (includeDefault && hasDefaultPermission(permission)) {
+        return true;
     }
-    return result;
+    auto mask = parseMask(getDatabase().get(fmt::format(keys::kDataPermission, uuid.asString())));
+    return (mask & static_cast<int>(permission)) != 0;
+}
+
+Result<void> PermissionStorage::grantPermission(mce::UUID const& uuid, Permission permission) {
+    if (hasPermission(uuid, permission, false)) {
+        return ll::makeI18nStringError<"Permission already granted">();
+    }
+    auto key  = fmt::format(keys::kDataPermission, uuid.asString());
+    auto mask = parseMask(getDatabase().get(key)) | static_cast<int>(permission);
+    getDatabase().set(key, serializeMask(mask));
+    return {};
+}
+
+Result<void> PermissionStorage::revokePermission(mce::UUID const& uuid, Permission permission) {
+    if (!hasPermission(uuid, permission, false)) {
+        return ll::makeI18nStringError<"Permission not granted">();
+    }
+    auto key  = fmt::format(keys::kDataPermission, uuid.asString());
+    auto mask = parseMask(getDatabase().get(key)) & ~static_cast<int>(permission);
+    getDatabase().set(key, serializeMask(mask));
+    return {};
+}
+
+PermissionStorage::Permissions PermissionStorage::getPermissions(mce::UUID const& uuid) const {
+    return maskToPermissions(parseMask(getDatabase().get(fmt::format(keys::kDataPermission, uuid.asString()))));
 }
 
 
 Result<void> PermissionStorage::grantDefaultPermission(Permission permission) {
-    if (hasDefaultPermission(permission)) return std::unexpected("Permission already granted");
-    mData.mDefaultPerms |= static_cast<int>(permission);
+    if (hasDefaultPermission(permission)) {
+        return ll::makeI18nStringError<"Permission already granted">();
+    }
+    auto mask = parseMask(getDatabase().get(keys::kDataPermissionDefault)) | static_cast<int>(permission);
+    getDatabase().set(keys::kDataPermissionDefault, serializeMask(mask));
     return {};
 }
 
 Result<void> PermissionStorage::revokeDefaultPermission(Permission permission) {
-    if (!hasDefaultPermission(permission)) return std::unexpected("Permission not granted");
-    mData.mDefaultPerms &= ~static_cast<int>(permission);
+    if (!hasDefaultPermission(permission)) {
+        return ll::makeI18nStringError<"Permission not granted">();
+    }
+    auto mask = parseMask(getDatabase().get(keys::kDataPermissionDefault)) & ~static_cast<int>(permission);
+    getDatabase().set(keys::kDataPermissionDefault, serializeMask(mask));
     return {};
 }
 
-std::vector<PermissionStorage::Permission> PermissionStorage::getDefaultPermissions() const {
-    std::vector<Permission> result;
-    for (auto const& p : magic_enum::enum_values<Permission>()) {
-        if (hasDefaultPermission(p)) result.push_back(p);
-    }
-    return result;
+PermissionStorage::Permissions PermissionStorage::getDefaultPermissions() const {
+    return maskToPermissions(parseMask(getDatabase().get(keys::kDataPermissionDefault)));
 }
 
-Result<std::pair<std::vector<PermissionStorage::Permission>, std::vector<PermissionStorage::Permission>>>
-PermissionStorage::tracePermissions(RealName const& realName) const {
-    if (!mData.mPlayerPerms.contains(realName)) {
-        return std::unexpected("Player not found");
+Result<std::pair<PermissionStorage::Permissions, PermissionStorage::Permissions>>
+PermissionStorage::tracePermissions(mce::UUID const& uuid) const {
+    return std::make_pair(getDefaultPermissions(), getPermissions(uuid));
+}
+
+
+Result<void> PermissionStorage::grantPermissionByName(RealName const& realName, Permission permission) {
+    if (auto uuid = TeleportSystem::getInstance().getStorageManager().resolveUuid(realName)) {
+        return grantPermission(uuid.value(), permission);
     }
-    auto defaultPerms = getDefaultPermissions();
-    auto playerPerms  = getPermissions(realName);
-    return std::make_pair<std::vector<PermissionStorage::Permission>, std::vector<PermissionStorage::Permission>>(
-        std::move(defaultPerms),
-        std::move(playerPerms)
-    );
+    // 解析不到 uuid (玩家未在 v2 进过服): 写 legacy 组, 等其进服后由懒迁移收编
+    auto key  = fmt::format(keys::kLegacyPermission, key_utils::escapeSegment(realName));
+    auto mask = parseMask(getDatabase().get(key));
+    if ((mask & static_cast<int>(permission)) != 0) {
+        return ll::makeI18nStringError<"Permission already granted">();
+    }
+    getDatabase().set(key, serializeMask(mask | static_cast<int>(permission)));
+    return {};
+}
+
+Result<void> PermissionStorage::revokePermissionByName(RealName const& realName, Permission permission) {
+    if (auto uuid = TeleportSystem::getInstance().getStorageManager().resolveUuid(realName)) {
+        return revokePermission(uuid.value(), permission);
+    }
+    auto key  = fmt::format(keys::kLegacyPermission, key_utils::escapeSegment(realName));
+    auto mask = parseMask(getDatabase().get(key));
+    if ((mask & static_cast<int>(permission)) == 0) {
+        return ll::makeI18nStringError<"Permission not granted">();
+    }
+    getDatabase().set(key, serializeMask(mask & ~static_cast<int>(permission)));
+    return {};
+}
+
+Result<std::pair<PermissionStorage::Permissions, PermissionStorage::Permissions>>
+PermissionStorage::tracePermissionsByName(RealName const& realName) const {
+    if (auto uuid = TeleportSystem::getInstance().getStorageManager().resolveUuid(realName)) {
+        return tracePermissions(uuid.value());
+    }
+    auto key = fmt::format(keys::kLegacyPermission, key_utils::escapeSegment(realName));
+    auto raw = getDatabase().get(key);
+    if (!raw.has_value()) {
+        return ll::makeI18nStringError<"Player {} not found">(realName);
+    }
+    return std::make_pair(getDefaultPermissions(), maskToPermissions(parseMask(raw)));
 }
 
 
 std::string PermissionStorage::toString(Permission permission) {
-    // return std::string(magic_enum::enum_name(permission));
     return ll::string_utils::toSnakeCase(std::string(magic_enum::enum_name(permission)));
 }
 
@@ -182,7 +243,7 @@ std::vector<PermissionStorage::Permission> PermissionStorage::getPermissions() {
 
 Result<std::vector<PermissionStorage::Permission>> PermissionStorage::resolve(std::string const& permissions) {
     if (permissions.empty()) {
-        return std::unexpected("Please provide permissions");
+        return ll::makeI18nStringError<"Please provide permissions">();
     }
     auto&                                      logger = TeleportSystem::getInstance().getSelf().getLogger();
     std::vector<PermissionStorage::Permission> result;
@@ -195,12 +256,13 @@ Result<std::vector<PermissionStorage::Permission>> PermissionStorage::resolve(st
         }
         auto perm = fromString(token);
         if (!perm.has_value()) {
-            return std::unexpected("Parsing failed, invalid permissions: " + token);
+            return ll::makeI18nStringError<"Parsing failed, invalid permissions: {}">(token);
         }
-        logger.trace("Parsed permission: {} -> {}", token, perm.value());
+        logger.trace("Parsed permission: {} -> {}", token, toString(perm.value()));
         result.push_back(perm.value());
     }
     return result;
 }
+
 
 } // namespace ltps

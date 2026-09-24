@@ -1,8 +1,10 @@
 #pragma once
 #include "ltps/Global.h"
 #include "ltps/database/IStorage.h"
+#include "mc/platform/UUID.h"
 #include <optional>
-#include <unordered_map>
+#include <string>
+#include <string_view>
 #include <vector>
 
 class Vec3;
@@ -31,38 +33,49 @@ public:
         TPSNDAPI std::string toString() const;
         TPSNDAPI std::string toPosString() const;
     };
-    using Homes   = std::vector<Home>;
-    using HomeMap = std::unordered_map<RealName, Homes>;
+    using Homes = std::vector<Home>;
 
 private:
-    HomeMap mHomes; // 玩家名 -> 家
+    // 索引: 家园名列表
+    TPSNDAPI std::vector<std::string> getNames(mce::UUID const& uuid) const;
+
+    TPSAPI void setNames(ll::data::KeyValueDB::WriteBatch& batch, mce::UUID const& uuid, std::vector<std::string> const& names)
+        const;
 
 public:
-    TPSAPI explicit HomeStorage();
+    TPS_DISALLOW_COPY_AND_MOVE(HomeStorage);
 
-    TPSAPI void load() override;
-    TPSAPI void unload() override;
-    TPSAPI void writeBack() override;
+    TPSAPI explicit HomeStorage(ll::data::KeyValueDB& db);
 
-    TPSNDAPI bool hasPlayer(RealName const& realName) const;
+    TPSNDAPI std::string_view getBusinessGroup() const override;
 
-    TPSNDAPI bool hasHome(RealName const& realName, std::string const& name);
+    TPSAPI void migrateFromV1(ll::data::KeyValueDB& v1, ll::data::KeyValueDB& v2) override;
+    TPSAPI void migrateUser(
+        ll::data::KeyValueDB::WriteBatch&            batch,
+        mce::UUID const&                 uuid,
+        RealName const&                  name,
+        std::vector<LegacyRecord> const& legacyRecords
+    ) override;
+    TPSAPI void rebuildIndexes(ll::data::KeyValueDB& db) override;
 
-    TPSNDAPI std::optional<Home> getHome(RealName const& realName, std::string const& name);
+    TPSNDAPI bool hasPlayer(mce::UUID const& uuid) const;
 
-    TPSNDAPI Result<void> updateHome(RealName const& realName, std::string const& name, Home home);
+    TPSNDAPI bool hasHome(mce::UUID const& uuid, std::string const& name) const;
 
-    TPSNDAPI Result<void> addHome(RealName const& realName, Home home);
+    TPSNDAPI std::optional<Home> getHome(mce::UUID const& uuid, std::string const& name) const;
 
-    TPSNDAPI Result<void> removeHome(RealName const& realName, std::string const& name);
+    TPSNDAPI Result<void> updateHome(mce::UUID const& uuid, std::string const& name, Home home);
 
-    TPSNDAPI Result<int> getHomeCount(RealName const& realName) const;
+    TPSNDAPI Result<void> addHome(mce::UUID const& uuid, Home home);
 
-    TPSNDAPI Homes const& getHomes(RealName const& realName);
+    TPSNDAPI Result<void> removeHome(mce::UUID const& uuid, std::string const& name);
 
-    TPSNDAPI HomeMap const& getAllHomes() const;
+    TPSNDAPI int getHomeCount(mce::UUID const& uuid) const;
 
-    static inline constexpr auto STORAGE_KEY = "home";
+    TPSNDAPI Homes getHomes(mce::UUID const& uuid) const;
+
+    // 管理面板: 拥有家园的玩家名列表 (已 uuid 化的用档案名, 未迁移的用 legacy 名)
+    TPSNDAPI std::vector<RealName> getAllOwnerNames() const;
 };
 
 

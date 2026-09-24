@@ -53,18 +53,18 @@ bool TprModule::enable() {
         auto& player = ev.getPlayer();
 
         if (getConfig().modules.tpr.disallowedDimensions.contains(player.getDimensionId())) {
-            mc_utils::sendText<mc_utils::Error>(player, "此功能在当前维度不可用"_trl(player.getLocaleCode()));
+            mc_utils::sendText<mc_utils::Error>(player, "This feature is unavailable in this dimension"_trl(player.getLocaleCode()));
             ev.cancel();
             return;
         }
 
         auto& cool = getCooldown();
-        if (cool.isCooldown(player.getRealName())) {
+        if (cool.isCooldown(player.getUuid().asString())) {
             mc_utils::sendText<mc_utils::Error>(
                 player,
-                "TPR 冷却中，请稍后再试, 冷却时间: {0}"_trl(
+                "TPR on cooldown, please retry later. Remaining: {0}"_trl(
                     player.getLocaleCode(),
-                    cool.getCooldownString(player.getRealName())
+                    cool.getCooldownString(player.getUuid().asString())
                 )
             );
             ev.cancel();
@@ -77,9 +77,9 @@ bool TprModule::enable() {
         if (!price.has_value()) {
             TeleportSystem::getInstance().getSelf().getLogger().error(
                 "An exception occurred while calculating the TPA price, please check the configuration file.\n{}",
-                price.error()
+                price.error().message()
             );
-            mc_utils::sendText<mc_utils::Error>(player, "Tpr 模块异常，请联系管理员"_trl(player.getLocaleCode()));
+            mc_utils::sendText<mc_utils::Error>(player, "TPR module error, please contact an administrator"_trl(player.getLocaleCode()));
             ev.cancel();
             return;
         }
@@ -91,7 +91,7 @@ bool TprModule::enable() {
             return;
         }
 
-        cool.setCooldown(player.getRealName(), getConfig().modules.tpr.cooldownTime);
+        cool.setCooldown(player.getUuid().asString(), getConfig().modules.tpr.cooldownTime);
     }));
 
     TprCommand::setup();

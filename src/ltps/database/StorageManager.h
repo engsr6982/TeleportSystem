@@ -1,57 +1,69 @@
 #pragma once
 #include "ll/api/data/KeyValueDB.h"
-#include "ll/api/thread/ThreadPoolExecutor.h"
 #include "ltps/Global.h"
 #include "ltps/database/IStorage.h"
-#include <ll/api/coro/InterruptableSleep.h>
+#include "mc/platform/UUID.h"
+#include <concepts>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <typeindex>
-#include <unordered_map>
 
 
 namespace ltps {
 
+// 数据布局: <库分组>:<业务组>:<用户唯一标识符>:<数据唯一标识符> => <数据>
+// 库分组 meta/data/legacy/index; 用户段为 uuid.asString(), legacy 组为 realName
 class StorageManager final {
 private:
-    std::unique_ptr<ll::data::KeyValueDB>                          mDatabase;
-    std::unordered_map<std::type_index, std::unique_ptr<IStorage>> mStorages;
-    std::shared_ptr<ll::coro::InterruptableSleep>                  mInterruptableSleep{nullptr};
-    std::shared_ptr<std::atomic_bool>                              mWriteBackTaskAbortFlag{nullptr};
+    class Impl;
+    std::unique_ptr<Impl> mImpl;
 
+    explicit StorageManager();
 
-    explicit StorageManager(ll::thread::ThreadPoolExecutor& threadPoolExecutor);
-
-    friend IStorage;
     friend class TeleportSystem;
+
+    void      registerStorageImpl(std::type_index type, std::unique_ptr<IStorage> storage);
+    IStorage* getStorageImpl(std::type_index type) const;
+
+    [[nodiscard]] ll::data::KeyValueDB& getDatabase() const;
 
 public:
     TPS_DISALLOW_COPY_AND_MOVE(StorageManager);
 
     TPSAPI ~StorageManager();
 
-    TPSAPI void postLoad();      // 通知所有Storage实例加载
-    TPSAPI void postUnload();    // 通知所有Storage实例卸载
-    TPSAPI void postWriteBack(); // 通知所有Storage实例回写
+    // 版本协议: 校验 meta:schema, 执行 v1 -> v2 迁移/改名/写标记
+    // 必须在所有 registerStorage 之后、模块初始化之前调用
+    TPSAPI void initialize();
 
-    // 注册一个Storage实例
+    // 通知所有 Storage 全量重建索引
+    TPSAPI void rebuildIndexes();
+
+    // 确保玩家数据已 uuid 化; 幂等, profile 记录兼作负缓存
+    TPSAPI void ensureUserMigrated(mce::UUID const& uuid, RealName const& name, std::string_view xuid = {});
+
+    // RealName -> uuid: index:ref:name: -> ll::service::PlayerInfo
+    TPSNDAPI Result<mce::UUID> resolveUuid(RealName const& name) const;
+
+    // 把 legacy 组中 <legacyName> 名下的记录收编到 uuid (管理命令 /ltps admin attach)
+    TPSAPI Result<void>
+           attachLegacyData(mce::UUID const& uuid, RealName const& legacyName, RealName const& currentName);
+
+    // 注册一个 Storage 实例
     template <typename T, typename... Args>
         requires std::derived_from<T, IStorage> && std::is_final_v<T>
     void registerStorage(Args&&... args) {
-        auto storage         = std::make_unique<T>(std::forward<Args>(args)...);
-        mStorages[typeid(T)] = std::move(storage);
+        registerStorageImpl(typeid(T), std::make_unique<T>(getDatabase(), std::forward<Args>(args)...));
     }
 
-    // 获取一个Storage实例
+    // 获取一个 Storage 实例
     template <typename T>
         requires std::derived_from<T, IStorage> && std::is_final_v<T>
     [[nodiscard]] T* getStorage() {
-        auto it = mStorages.find(typeid(T));
-        if (it == mStorages.end()) {
-            return nullptr;
-        }
-        return static_cast<T*>(it->second.get());
+        return static_cast<T*>(getStorageImpl(typeid(T)));
     }
 };
+
 
 } // namespace ltps
