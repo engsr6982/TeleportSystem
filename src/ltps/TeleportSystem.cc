@@ -101,6 +101,9 @@ bool TeleportSystem::enable() {
 }
 
 bool TeleportSystem::disable() {
+    mTelemetry->shutdown(); // 关闭 bStats
+    mTelemetry.reset();     // 销毁 bStats
+
     mModuleManager->disableModules(); // 禁用模块
     mStorageManager->postUnload();    // 卸载 Storage
 
@@ -119,11 +122,12 @@ bool TeleportSystem::unload() {
 }
 
 void TeleportSystem::postInitTelemetry() {
+    mTelemetry   = std::make_unique<ll_bstats::Telemetry>(34271, LTPS_VERSION_STRING);
     bool enabled = getConfig().telemetry;
     if (enabled && !mTelemetry) {
-        mTelemetry = std::make_unique<ll_bstats::Telemetry>(34271, LTPS_VERSION_STRING);
+        mTelemetry->launch(this->getThreadPool());
     } else if (!enabled && mTelemetry) {
-        mTelemetry.reset();
+        mTelemetry->shutdown();
     }
 }
 void TeleportSystem::postInitEconomy() {
