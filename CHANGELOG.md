@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-19
+
+- 修复关服崩溃 @LONGGE322
+
 ## [0.20.0] - 2026-09-25
 
 - 适配 LeviLamina v26.51.x
