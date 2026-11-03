@@ -1,12 +1,12 @@
 add_rules("mode.debug", "mode.release")
 
-add_repositories("liteldev-repo https://github.com/LiteLDev/xmake-repo.git")
+add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
 add_repositories("iceblcokmc https://github.com/IceBlcokMC/xmake-repo.git")
 
-add_requires("levilamina 26.51.5", {configs = {target_type = "server"}})
+add_requires("levilamina f28a4b5dd6454948f163b4649238dfecabb7485f", {configs = {target_type = "server"}})
 
-add_requires("ll-bstats 0.7.0")
-add_requires("economy_bridge 0.7.0")
+add_requires("ll-bstats 4f51f3937a2ed3fc0a49450595267da17457fdff")
+add_requires("economy_bridge 083bda6497de53c6e3ca44aff23f8677ed531038")
 
 add_requires("levibuildscript")
 add_requires("exprtk 0.0.3")

@@ -3,12 +3,13 @@
 #include "mc/deps/core/math/Vec3.h"
 #include "mc/deps/ecs/WeakEntityRef.h"
 #include <cstdint>
+#include <ll/api/coro/ConditionVariable.h>
 #include <ll/api/coro/CoroTask.h>
-#include <ll/api/coro/InterruptableSleep.h>
 #include <ll/api/thread/ServerThreadExecutor.h>
 #include <mc/network/packet/SetTitlePacket.h>
 #include <mc/world/level/ChunkPos.h>
 #include <utility>
+
 
 
 class DimensionHeightRange;
@@ -126,9 +127,9 @@ private:
 
     std::unordered_map<TaskId, SharedTask> mTasks;
 
-    ll::thread::ServerThreadExecutor const&       mServerThreadExecutor;
-    std::shared_ptr<ll::coro::InterruptableSleep> mInterruptableSleep{nullptr};
-    std::shared_ptr<std::atomic_bool>             mPollingAbortFlag{nullptr};
+    ll::thread::ServerThreadExecutor const&      mServerThreadExecutor;
+    std::shared_ptr<ll::coro::ConditionVariable> mInterruptableSleep{nullptr};
+    std::shared_ptr<std::atomic_bool>            mPollingAbortFlag{nullptr};
 };
 
 } // namespace ltps::tpr

@@ -13,14 +13,15 @@ StorageManager::StorageManager(ll::thread::ThreadPoolExecutor& threadPoolExecuto
         auto path = TeleportSystem::getInstance().getSelf().getModDir() / "leveldb";
         mDatabase = std::make_unique<ll::data::KeyValueDB>(path);
     }
-    mInterruptableSleep     = std::make_shared<ll::coro::InterruptableSleep>();
+    mInterruptableSleep     = std::make_shared<ll::coro::ConditionVariable>();
     mWriteBackTaskAbortFlag = std::make_shared<std::atomic_bool>(false);
 
     ll::coro::keepThis(
-        [this, interruptableSleep = mInterruptableSleep, writeBackTaskAbortFlag = mWriteBackTaskAbortFlag](
-        ) -> ll::coro::CoroTask<> {
+        [this,
+         interruptableSleep     = mInterruptableSleep,
+         writeBackTaskAbortFlag = mWriteBackTaskAbortFlag]() -> ll::coro::CoroTask<> {
             while (!writeBackTaskAbortFlag->load()) {
-                co_await interruptableSleep->sleepFor(std::chrono::seconds(60));
+                co_await interruptableSleep->waitFor(std::chrono::seconds(60));
                 if (writeBackTaskAbortFlag->load()) {
                     break;
                 }
@@ -33,7 +34,7 @@ StorageManager::StorageManager(ll::thread::ThreadPoolExecutor& threadPoolExecuto
 
 StorageManager::~StorageManager() {
     mWriteBackTaskAbortFlag->store(true);
-    mInterruptableSleep->interrupt(true);
+    mInterruptableSleep->notifyAll(true);
 }
 
 void StorageManager::postLoad() {

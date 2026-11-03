@@ -194,12 +194,12 @@ void SafeTeleport::Task::launchFindPosTask(ll::thread::ServerThreadExecutor cons
 
 SafeTeleport::SafeTeleport(ll::thread::ServerThreadExecutor const& serverThreadExecutor)
 : mServerThreadExecutor(serverThreadExecutor) {
-    mInterruptableSleep = std::make_shared<ll::coro::InterruptableSleep>();
+    mInterruptableSleep = std::make_shared<ll::coro::ConditionVariable>();
     mPollingAbortFlag   = std::make_shared<std::atomic_bool>(false);
 
     ll::coro::keepThis([this, sleep = mInterruptableSleep, abortFlag = mPollingAbortFlag]() -> ll::coro::CoroTask<> {
         while (!abortFlag->load()) {
-            co_await sleep->sleepFor(ll::chrono::ticks{10});
+            co_await sleep->waitFor(ll::chrono::ticks{10});
             if (abortFlag->load()) break;
             try {
                 polling();
@@ -215,7 +215,7 @@ SafeTeleport::SafeTeleport(ll::thread::ServerThreadExecutor const& serverThreadE
 
 SafeTeleport::~SafeTeleport() {
     mPollingAbortFlag->store(true);
-    mInterruptableSleep->interrupt(true);
+    mInterruptableSleep->notifyAll(true);
     for (auto& [_, task] : mTasks) {
         task->abort();
     }
